@@ -86,10 +86,32 @@ export interface PrivacySettings {
   compactOnly: boolean;
 }
 
+export type HookOperation = "install" | "uninstall" | "repair" | "self-test";
+
+export interface HookOperationError {
+  operation: HookOperation;
+  code: string;
+  message: string;
+  occurredAt: string;
+  retryAction: HookOperation;
+}
+
+export interface HookSourceErrors {
+  codex?: HookOperationError;
+  claudeCode?: HookOperationError;
+}
+
+export interface HookSourceSettings {
+  codex: boolean;
+  claudeCode: boolean;
+  lastErrors: HookSourceErrors;
+}
+
 export interface AppSettings {
   privacy: PrivacySettings;
   mousePassthrough: boolean;
   enabledAdapters: AgentSource[];
+  hookSource: HookSourceSettings;
 }
 
 export interface AgentBridgeSubscriptions {

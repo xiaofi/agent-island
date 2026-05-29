@@ -97,6 +97,11 @@ export const mockSettings: AppSettings = {
   },
   mousePassthrough: false,
   enabledAdapters: ["manual", "codex", "claude-code"],
+  hookSource: {
+    codex: false,
+    claudeCode: false,
+    lastErrors: {},
+  },
 };
 
 export const mockDiagnostics: AdapterDiagnostic[] = [

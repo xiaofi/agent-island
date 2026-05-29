@@ -1,7 +1,14 @@
 import { defineStore } from "pinia";
 import { computed, ref } from "vue";
-import type { AppSettings } from "@/domain/taskTypes";
-import { getSettings, setMousePassthrough, updateSettings } from "@/bridge/tauriApi";
+import type { AgentSource, AppSettings, HookOperation } from "@/domain/taskTypes";
+import {
+  getSettings,
+  retryHookSourceOperation,
+  runHookSelfTest,
+  setHookSourceEnabled,
+  setMousePassthrough,
+  updateSettings,
+} from "@/bridge/tauriApi";
 
 export const usePreferencesStore = defineStore("preferences", () => {
   const settings = ref<AppSettings>({
@@ -12,6 +19,11 @@ export const usePreferencesStore = defineStore("preferences", () => {
     },
     mousePassthrough: false,
     enabledAdapters: ["manual", "codex", "claude-code"],
+    hookSource: {
+      codex: false,
+      claudeCode: false,
+      lastErrors: {},
+    },
   });
   const loaded = ref(false);
 
@@ -40,6 +52,18 @@ export const usePreferencesStore = defineStore("preferences", () => {
     await setMousePassthrough(enabled);
   }
 
+  async function setHookSource(source: Extract<AgentSource, "codex" | "claude-code">, enabled: boolean) {
+    settings.value = await setHookSourceEnabled(source, enabled);
+  }
+
+  async function retryHookSource(source: Extract<AgentSource, "codex" | "claude-code">, operation: HookOperation) {
+    settings.value = await retryHookSourceOperation(source, operation);
+  }
+
+  async function selfTestHookSource(source: Extract<AgentSource, "codex" | "claude-code">) {
+    settings.value = await runHookSelfTest(source);
+  }
+
   function replaceSettings(next: AppSettings) {
     settings.value = next;
     loaded.value = true;
@@ -53,6 +77,9 @@ export const usePreferencesStore = defineStore("preferences", () => {
     patch,
     setPrivacy,
     setMousePassthroughPreference,
+    setHookSource,
+    retryHookSource,
+    selfTestHookSource,
     replaceSettings,
   };
 });

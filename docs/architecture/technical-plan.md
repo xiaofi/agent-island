@@ -186,7 +186,7 @@ src-tauri/src/
 - `services/process_scan.rs`：用 `sysinfo` 读取进程名、命令行、cwd 候选信息。
 - `services/file_watch.rs`：用 `notify` 监听 mock JSON 或真实日志变化。
 - `services/hook_installer.rs`：预览、安装、卸载 Claude Code / Codex hook，保证备份、幂等和只删除自身条目。
-- `services/hook_ingest.rs`：消费 hook helper 写入的本地 JSONL 事件，归一化为 `AgentEvent`。
+- `services/hook_ingest.rs`：消费 hook helper 写入的本地 JSONL 事件，按来源接入设置过滤后归一化为 `AgentEvent`。
 - `commands/discovery.rs`：暴露 `run_discovery(source?)` 给诊断页。
 - `commands/window.rs`：处理拖拽、置顶、鼠标穿透、显示隐藏、位置记忆。
 
@@ -224,6 +224,20 @@ interface AgentTask {
   events: AgentEvent[];
 }
 ```
+
+Hook 接入设置独立于 discovery，但和安装状态保持一致：开关打开表示 Agent Island hook 已安装并接收状态，开关关闭表示 Agent Island 自己的 hook command 已被卸载。
+
+```ts
+interface HookSourceSettings {
+  codex: boolean;
+  claudeCode: boolean;
+  lastErrors: Partial<Record<AgentSource, HookOperationError>>;
+}
+```
+
+默认两个来源都为 `false`。设置面板只有在 discovery 发现本机已安装对应工具时才显示开关。打开开关走安装预览和确认；关闭开关必须精确删除 Agent Island 自己的 hook command，成功后该来源的 hook payload 才不能再触发 Agent Island。
+
+Hook 安装、卸载、修复、自检失败时，错误状态写入 `config.json` 和 `install-manifest.json`。设置窗口重新打开后必须恢复失败状态，并提供按失败动作映射的重试按钮。
 
 补充建议：
 

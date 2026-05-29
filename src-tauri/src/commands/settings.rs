@@ -24,6 +24,10 @@ pub async fn update_settings(patch: AppSettingsPatch) -> Result<AppSettings, Str
         settings.enabled_adapters = enabled_adapters;
     }
 
+    if let Some(hook_source) = patch.hook_source {
+        settings.hook_source = hook_source;
+    }
+
     config_store::save_settings(&settings)?;
     Ok(settings)
 }

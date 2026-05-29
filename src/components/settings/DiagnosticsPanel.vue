@@ -2,7 +2,8 @@
 import { RefreshCw } from "@lucide/vue";
 import IconButton from "@/components/primitives/IconButton.vue";
 import { sourceLabel } from "@/domain/privacy";
-import type { AdapterDiagnostic } from "@/domain/taskTypes";
+import type { AdapterDiagnostic, AgentSource, HookOperationError } from "@/domain/taskTypes";
+import { usePreferencesStore } from "@/stores/preferencesStore";
 import { useTaskStore } from "@/stores/taskStore";
 
 defineProps<{
@@ -10,6 +11,17 @@ defineProps<{
 }>();
 
 const taskStore = useTaskStore();
+const preferencesStore = usePreferencesStore();
+
+function hookError(source: AgentSource): HookOperationError | undefined {
+  if (source === "codex") {
+    return preferencesStore.settings.hookSource.lastErrors.codex;
+  }
+  if (source === "claude-code") {
+    return preferencesStore.settings.hookSource.lastErrors.claudeCode;
+  }
+  return undefined;
+}
 </script>
 
 <template>
@@ -29,6 +41,10 @@ const taskStore = useTaskStore();
         </span>
       </header>
       <p>{{ diagnostic.summary }}</p>
+      <p v-if="hookError(diagnostic.source)" class="diagnostic-card__error">
+        {{ hookError(diagnostic.source)?.operation }} 失败：{{ hookError(diagnostic.source)?.message }} ·
+        {{ new Date(hookError(diagnostic.source)!.occurredAt).toLocaleString() }}
+      </p>
       <dl>
         <div>
           <dt>进程</dt>

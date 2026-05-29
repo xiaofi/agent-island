@@ -121,12 +121,49 @@ pub struct PrivacySettings {
     pub compact_only: bool,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "kebab-case")]
+pub enum HookOperation {
+    Install,
+    Uninstall,
+    Repair,
+    SelfTest,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HookOperationError {
+    pub operation: HookOperation,
+    pub code: String,
+    pub message: String,
+    pub occurred_at: String,
+    pub retry_action: HookOperation,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct HookSourceErrors {
+    pub codex: Option<HookOperationError>,
+    pub claude_code: Option<HookOperationError>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HookSourceSettings {
+    pub codex: bool,
+    pub claude_code: bool,
+    #[serde(default)]
+    pub last_errors: HookSourceErrors,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AppSettings {
     pub privacy: PrivacySettings,
     pub mouse_passthrough: bool,
     pub enabled_adapters: Vec<AgentSource>,
+    #[serde(default = "default_hook_source_settings")]
+    pub hook_source: HookSourceSettings,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -135,6 +172,7 @@ pub struct AppSettingsPatch {
     pub privacy: Option<PrivacySettings>,
     pub mouse_passthrough: Option<bool>,
     pub enabled_adapters: Option<Vec<AgentSource>>,
+    pub hook_source: Option<HookSourceSettings>,
 }
 
 pub fn now_iso() -> String {
@@ -150,5 +188,14 @@ pub fn default_settings() -> AppSettings {
         },
         mouse_passthrough: false,
         enabled_adapters: vec![AgentSource::Manual, AgentSource::Codex, AgentSource::ClaudeCode],
+        hook_source: default_hook_source_settings(),
+    }
+}
+
+pub fn default_hook_source_settings() -> HookSourceSettings {
+    HookSourceSettings {
+        codex: false,
+        claude_code: false,
+        last_errors: HookSourceErrors::default(),
     }
 }

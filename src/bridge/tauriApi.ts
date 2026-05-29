@@ -8,6 +8,7 @@ import type {
   AgentSource,
   AgentTask,
   AppSettings,
+  HookOperation,
 } from "@/domain/taskTypes";
 import { cloneMockDiagnostics, cloneMockSettings, cloneMockTasks } from "@/mock/tasks";
 
@@ -58,8 +59,58 @@ export async function updateSettings(patch: Partial<AppSettings>): Promise<AppSe
       ...mockSettings.privacy,
       ...patch.privacy,
     },
+    hookSource: {
+      ...mockSettings.hookSource,
+      ...patch.hookSource,
+      lastErrors: {
+        ...mockSettings.hookSource.lastErrors,
+        ...patch.hookSource?.lastErrors,
+      },
+    },
   };
   window.localStorage.setItem("agent-island-settings", JSON.stringify(mockSettings));
+  return structuredClone(mockSettings);
+}
+
+export async function setHookSourceEnabled(
+  source: Extract<AgentSource, "codex" | "claude-code">,
+  enabled: boolean,
+): Promise<AppSettings> {
+  if (isTauri()) {
+    return invoke<AppSettings>("set_hook_source_enabled", { source, enabled });
+  }
+
+  mockSettings = {
+    ...mockSettings,
+    hookSource: {
+      ...mockSettings.hookSource,
+      [source === "codex" ? "codex" : "claudeCode"]: enabled,
+      lastErrors: {
+        ...mockSettings.hookSource.lastErrors,
+        [source === "codex" ? "codex" : "claudeCode"]: undefined,
+      },
+    },
+  };
+  window.localStorage.setItem("agent-island-settings", JSON.stringify(mockSettings));
+  return structuredClone(mockSettings);
+}
+
+export async function retryHookSourceOperation(
+  source: Extract<AgentSource, "codex" | "claude-code">,
+  operation: HookOperation,
+): Promise<AppSettings> {
+  if (isTauri()) {
+    return invoke<AppSettings>("retry_hook_source_operation", { source, operation });
+  }
+
+  return setHookSourceEnabled(source, operation !== "uninstall");
+}
+
+export async function runHookSelfTest(source: Extract<AgentSource, "codex" | "claude-code">): Promise<AppSettings> {
+  if (isTauri()) {
+    return invoke<AppSettings>("run_hook_self_test", { source });
+  }
+
   return structuredClone(mockSettings);
 }
 

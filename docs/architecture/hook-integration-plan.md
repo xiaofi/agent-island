@@ -84,6 +84,60 @@ Floating island / diagnostics window
 - Hook helper 不直接调用 Tauri command，不依赖 app 是否启动。
 - 事件先进入 append-only 本地 JSONL，主程序启动后再消费。
 - Discovery 仍保留，用于进程发现、路径诊断和 hook 未启用时的降级展示。
+- Hook 接入按来源独立受用户设置控制；Claude Code 和 Codex 不互相隐式启用。
+
+### 3.1 来源接入开关
+
+Agent Island 区分三个状态：
+
+1. **来源可发现**：可以做进程扫描和候选路径诊断。
+2. **Agent Island hook 已安装**：用户配置中存在 Agent Island 自己的 hook command。
+3. **来源接入已启用**：用户允许 Agent Island 安装该来源 hook 并接收真实 hook 事件。
+
+设置开关采用一体化语义：打开表示“安装 Agent Island hook 并接收状态”，关闭表示“卸载 Agent Island 自己的 hook command”。关闭后，对应 Claude Code / Codex 配置中不应再调用 Agent Island helper。
+
+设置模型建议：
+
+```ts
+interface HookSourceSettings {
+  codex: boolean;
+  claudeCode: boolean;
+  lastErrors: Partial<Record<AgentSource, HookOperationError>>;
+}
+
+interface HookOperationError {
+  operation: "install" | "uninstall" | "repair" | "self-test";
+  code: string;
+  message: string;
+  occurredAt: string;
+  retryAction: "install" | "uninstall" | "repair" | "self-test";
+}
+```
+
+默认值为：
+
+```json
+{
+  "hookSource": {
+    "codex": false,
+    "claudeCode": false,
+    "lastErrors": {}
+  }
+}
+```
+
+运行时强制点：
+
+- 设置窗口只在 discovery 发现本机安装了对应工具时显示开关；未发现安装时显示“未发现 Claude Code 安装”或“未发现 Codex 安装”，不提供开关。
+- `set_hook_source_enabled(source, true)` 必须执行安装预览、用户确认、备份、原子写入和自检。
+- `set_hook_source_enabled(source, false)` 必须执行卸载，精确删除 Agent Island 自己的 hook command；成功后才把设置改为 false。
+- 如果卸载失败，设置保持 true，UI 显示“卸载失败”，因为 Agent Island hook 仍可能影响该来源运行。
+- 安装、卸载、修复、自检失败必须写入持久化 `lastErrors[source]`，包括失败动作、错误码、简短原因、发生时间和可重试动作。
+- 对应动作重试成功后必须清除该来源的 `lastErrors[source]`。
+- `agent-island-hook --source codex` 在写入前仍读取 `hookSource.codex` 作为防御；为 false 时直接 `exit 0`。
+- `agent-island-hook --source claude-code` 在写入前仍读取 `hookSource.claudeCode` 作为防御；为 false 时直接 `exit 0`。
+- `hook_ingest.rs` 消费事件时再次按当前设置过滤来源；关闭开关后，旧 spool 或残留 hook 事件不能继续更新任务。
+- `get_tasks()` 和 aggregator 不返回关闭来源的真实 hook 任务；diagnostics 可以展示安装残留、卸载失败或未发现安装。
 
 ## 4. 本地文件布局
 
@@ -198,17 +252,63 @@ helper 不向 stdout 输出任何内容，不向 stderr 输出任何内容。所
 
 安装 hook 必须由用户在 Agent Island 设置窗口中显式点击启用。Agent Island 不在后台静默修改任何 Claude Code / Codex 配置。
 
-启用流程：
+接入也必须按来源单独确认。用户只打开 Claude Code 接入时，Codex hook 仍然保持关闭；用户只打开 Codex 接入时，Claude Code hook 仍然保持关闭。
 
-1. 扫描 Claude Code / Codex 是否安装、支持 hook、现有配置是否可读写。
-2. 生成 dry-run diff，在诊断窗口展示将新增的 hook command 和目标文件。
-3. 用户确认后，创建备份。
-4. 使用结构化 JSON/TOML parser 合并配置。
-5. 原子写入临时文件，再 rename 覆盖。
-6. 写入 `install-manifest.json`。
-7. 运行自检：触发 helper `--self-test`，确认 spool 可写。
+单个来源的启用流程：
 
-### 7.2 优先级
+1. discovery 确认本机存在对应工具；未发现时不显示开关，只显示未安装提示。
+2. 扫描该工具是否支持 hook、现有配置是否可读写。
+3. 生成 dry-run diff，在设置窗口展示将新增的 hook command 和目标文件。
+4. 用户确认后，创建备份。
+5. 使用结构化 JSON/TOML parser 合并配置。
+6. 原子写入临时文件，再 rename 覆盖。
+7. 写入 `install-manifest.json`。
+8. 将该来源的 `hookSource` 设置为 true。
+9. 运行自检：触发 helper `--self-test --source <source>`，确认启用时 spool 可写。
+10. 安装和自检都成功后，清除该来源历史失败状态。
+
+关闭接入流程：
+
+1. 用户在设置窗口关闭某来源开关。
+2. UI 将该开关置为 loading，不先展示为关闭。
+3. 按 manifest 和当前配置精确删除 Agent Island 自己的 hook command；不删除、不改写用户已有 hook。
+4. 如某个 matcher group 删除 Agent Island command 后为空，只删除这个空 group；其他用户配置保持原样。
+5. 原子写入配置并更新 manifest。
+6. 将该来源的 `hookSource` 设置为 false。
+7. ingest 停止把该来源已有 spool 事件转成任务，UI 移除该来源真实 hook 任务。
+8. 诊断页显示“未接入”。
+9. 清除该来源历史失败状态。
+
+卸载失败流程：
+
+1. 如果配置不可写、JSON/TOML 无法解析、hash 冲突不可安全合并或原子写入失败，不能把开关显示为关闭。
+2. UI 将开关恢复为打开状态，状态显示“卸载失败”，并在诊断页提供失败原因和手动删除指引。
+3. helper 的本地设置防御可以临时阻止落盘，但这不能作为完成状态；只有配置里的 Agent Island command 删除成功，才算关闭成功。
+4. 失败信息写入 `hookSource.lastErrors[source]` 和 `install-manifest.json` 的 lastError 字段。用户关闭再打开设置窗口时，仍显示卸载失败状态和“重试”按钮。
+
+### 7.2 失败状态持久化
+
+Hook 相关操作的失败不能只存在于一次性 toast。以下操作失败时都必须持久化：
+
+- 安装。
+- 卸载。
+- 修复接入。
+- 自检。
+
+持久化位置：
+
+- `config.json` 保存 UI 需要恢复的 `hookSource.lastErrors`。
+- `install-manifest.json` 保存安装器审计需要的 `lastError`、最后一次目标文件、目标 hash 和建议重试动作。
+
+展示规则：
+
+- 设置窗口每次打开时读取持久化错误；如果某来源存在 `lastErrors[source]`，对应卡片显示失败状态、简短原因、发生时间和“重试”按钮。
+- 诊断窗口显示同一份失败状态，并额外显示目标配置路径、是否可写、manifest hash 状态和手动处理建议。
+- toast 只作为即时反馈，不能作为唯一错误载体。
+- 用户重试成功后清除该来源失败状态；重试失败则用新的失败时间和原因覆盖旧失败。
+- 用户可以点击“清除提示”，但只有在当前 discovery 确认没有 Agent Island command 残留，或用户明确选择忽略时才允许清除。清除提示不能修改真实配置。
+
+### 7.3 优先级
 
 优先采用官方插件 hook 机制，其次才修改用户级配置文件。
 
@@ -419,6 +519,8 @@ src-tauri/src/
 
 ```ts
 get_hook_install_status(): Promise<HookInstallStatus[]>
+get_hook_source_settings(): Promise<HookSourceSettings>
+set_hook_source_enabled(source: AgentSource, enabled: boolean): Promise<HookSourceSettings>
 preview_hook_install(source: AgentSource, scope: "user" | "project"): Promise<HookInstallPreview>
 install_hooks(source: AgentSource, scope: "user" | "project"): Promise<HookInstallResult>
 uninstall_hooks(source: AgentSource, scope: "user" | "project"): Promise<HookUninstallResult>
@@ -429,9 +531,22 @@ run_hook_self_test(source: AgentSource): Promise<HookSelfTestResult>
 
 设置窗口增加 “状态采集” 区域：
 
-- Claude Code hook：未安装 / 已安装 / 需信任 / 被用户禁用 / 配置不可写。
-- Codex hook：未安装 / 已安装 / 需 trust / hooks disabled / 配置不可写。
-- 按钮：预览变更、启用、卸载、运行自检。
+- 未发现 Claude Code 安装时：显示“未发现 Claude Code 安装”，不显示 Claude Code 开关。
+- 未发现 Codex 安装时：显示“未发现 Codex 安装”，不显示 Codex 开关。
+- Claude Code 卡片：接入开关、未接入 / 接入中 / 已接入 / 需信任 / 被用户禁用 / 配置不可写 / 安装失败 / 卸载失败 / 自检失败。
+- Codex 卡片：接入开关、未接入 / 接入中 / 已接入 / 需 trust / hooks disabled / 配置不可写 / 安装失败 / 卸载失败 / 自检失败。
+- 按钮：预览变更、修复接入、运行自检；失败状态下显示重试。
+
+交互细节：
+
+- 首次打开某来源开关时，先进入安装预览，不直接写配置。
+- 如果 hook 已安装且自检通过，打开开关可以只校验 manifest 并更新 `hookSource`。
+- 关闭开关就是卸载 Agent Island 自己的 hook command；卸载成功后才显示为关闭。
+- 关闭开关失败时恢复为打开，显示“卸载失败”，因为外部 agent 仍可能调用 Agent Island helper。
+- 失败状态必须从持久化状态恢复。设置窗口重新打开后仍显示失败状态，不依赖上一次运行时内存。
+- “重试”按钮根据失败动作调用对应操作：安装失败重试安装，卸载失败重试卸载，自检失败重试自检，修复失败重试修复。
+- 卡片内必须明确说明“此开关只影响 Claude Code”或“此开关只影响 Codex”。
+- 两个来源的状态和错误互不影响，一个来源配置不可写时不阻断另一个来源。
 
 诊断窗口增加：
 
@@ -439,6 +554,7 @@ run_hook_self_test(source: AgentSource): Promise<HookSelfTestResult>
 - Agent Island command 是否存在。
 - helper 路径是否存在、是否可执行。
 - spool 是否可写。
+- 持久化失败状态、最近失败时间、失败动作和可重试动作。
 - 最近 10 条归一化事件。
 - 最近 ingest 错误。
 
@@ -456,14 +572,22 @@ run_hook_self_test(source: AgentSource): Promise<HookSelfTestResult>
 
 - 使用临时 HOME 模拟 `~/.codex/hooks.json` 和 `~/.claude/settings.json`。
 - 安装、二次安装、卸载、用户手动改配置后卸载。
-- helper 接收 Claude/Codex 样例 JSON 后写入最小 JSONL。
+- helper 接收已启用来源的 Claude/Codex 样例 JSON 后写入最小 JSONL。
 - app 不运行时 helper 能正常退出；app 启动后能消费积压事件。
+- 关闭 Codex 开关后，`~/.codex` 配置中不再包含 Agent Island command，Codex 不再调用 helper；Claude Code 不受影响。
+- 关闭 Claude Code 开关后，`~/.claude` 配置中不再包含 Agent Island command，Claude Code 不再调用 helper；Codex 不受影响。
+- 卸载失败时开关保持打开，并展示失败原因。
+- 安装、卸载、修复、自检失败后重启应用或重新打开设置窗口，失败状态仍然可见。
+- 重试成功后清除失败状态；重试失败后更新失败时间和原因。
 
 手动验收：
 
 - 用户已有 hook 不变，安装后仍存在且顺序不变。
 - Codex 未 trust 时任务不受影响，Agent Island 诊断页显示需 trust。
 - Claude Code / Codex 执行 Bash、编辑文件、等待权限时，悬浮岛状态更新。
+- 只打开 Claude Code 接入时，悬浮岛只展示 Claude Code hook 任务，不展示 Codex hook 任务。
+- 只打开 Codex 接入时，悬浮岛只展示 Codex hook 任务，不展示 Claude Code hook 任务。
+- 关闭某来源开关后，对应 agent 的后续任务中不再触发 Agent Island helper。
 - helper 删除或不可执行时，Claude Code / Codex 不被阻断。
 - 隐私模式开启后，UI 不显示完整 cwd / title。
 
@@ -516,6 +640,7 @@ run_hook_self_test(source: AgentSource): Promise<HookSelfTestResult>
 | 采集到敏感内容 | 默认 denylist + allowlist 双层 sanitizer；测试覆盖敏感字段不落盘 |
 | transcript 格式变化 | 不依赖 transcript 解析做主路径，只用 hook payload 的稳定字段 |
 | 用户关闭 hooks | 尊重关闭状态，Agent Island 降级到 discovery，不强行启用 |
+| 失败提示丢失导致错误积累 | 失败状态写入 config 和 manifest；设置与诊断窗口恢复展示，并提供重试 |
 
 ## 14. 官方参考
 

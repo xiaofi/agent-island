@@ -27,16 +27,20 @@ pub fn save_settings(settings: &AppSettings) -> Result<(), String> {
     fs::write(path, contents).map_err(|error| error.to_string())
 }
 
-fn config_path() -> Option<PathBuf> {
+pub fn app_support_dir() -> Option<PathBuf> {
     let home = std::env::var_os("HOME").map(PathBuf::from)?;
 
     #[cfg(target_os = "macos")]
     {
-        return Some(home.join("Library/Application Support/Agent Island/config.json"));
+        return Some(home.join("Library/Application Support/Agent Island"));
     }
 
     #[cfg(not(target_os = "macos"))]
     {
-        Some(home.join(".config/agent-island/config.json"))
+        Some(home.join(".config/agent-island"))
     }
+}
+
+fn config_path() -> Option<PathBuf> {
+    app_support_dir().map(|dir| dir.join("config.json"))
 }

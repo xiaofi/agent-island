@@ -21,6 +21,7 @@
 1. [architecture/hook-ingestion.md](architecture/hook-ingestion.md)
 2. [operations/privacy-and-permissions.md](operations/privacy-and-permissions.md)
 3. [architecture/hook-integration-plan.md](architecture/hook-integration-plan.md)
+4. [decisions/0002-per-source-hook-reception.md](decisions/0002-per-source-hook-reception.md)
 
 ## 文档分层
 

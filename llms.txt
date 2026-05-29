@@ -26,6 +26,7 @@ Agent Island is a local status layer. It discovers, normalizes, displays, and li
 - [Privacy and Permissions](docs/operations/privacy-and-permissions.md): privacy model and hook safety constraints.
 - [AI-Friendly Documentation Research](docs/research/ai-friendly-documentation.md): external research and adopted principles.
 - [ADR 0001](docs/decisions/0001-ai-friendly-documentation.md): decision record for the documentation architecture.
+- [ADR 0002](docs/decisions/0002-per-source-hook-reception.md): Claude Code and Codex hook integration is controlled separately per source, and disabling a source uninstalls Agent Island's own hook command.
 
 ## Current Implementation Notes
 
@@ -40,5 +41,6 @@ Agent Island is a local status layer. It discovers, normalizes, displays, and li
 
 - Do not silently modify user Claude Code or Codex config.
 - Hook install must be explicit, previewed, backed up, atomic, and reversible.
+- Claude Code and Codex hook integration must be enabled separately by the user; enabling one source must not enable the other, and disabling a source must uninstall Agent Island's own hook command.
 - Hook helper must not output stdout/stderr, must not return decision/context fields, and must exit successfully on failure.
 - Do not store prompt text, assistant responses, full tool input/output, full shell commands, full patches, or transcript content by default.
