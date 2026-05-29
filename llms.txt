@@ -1,0 +1,44 @@
+# Agent Island
+
+> macOS-first local desktop floating island for showing Claude Code and Codex task status. Built with Tauri 2, Vue 3, TypeScript, Vite, Pinia, and Rust services.
+
+Agent Island is a local status layer. It discovers, normalizes, displays, and links back to AI coding agent sessions. It does not take over agent execution, does not upload data, and does not read full conversation content by default.
+
+## Core Context
+
+- [Project README](README.md): human-facing entry, commands, and current focus.
+- [Agent Instructions](AGENTS.md): repo rules for AI coding agents.
+- [AI Context Map](docs/ai/context-map.md): task-oriented reading map.
+- [Documentation Index](docs/README.md): complete documentation layout.
+
+## Detailed Source Documents
+
+- [Product Spec](docs/product/spec.md): product goals, non-goals, UX states, task model, adapter goals.
+- [Technical Plan](docs/architecture/technical-plan.md): stack, architecture, modules, commands, events, milestones, risks.
+- [Hook Integration Plan](docs/architecture/hook-integration-plan.md): Claude Code and Codex hook ingestion, privacy, install and uninstall strategy.
+
+## Task-Oriented Docs
+
+- [Product Overview](docs/product/overview.md): stable product summary.
+- [Architecture Overview](docs/architecture/overview.md): system modules and data flow.
+- [Hook Ingestion Summary](docs/architecture/hook-ingestion.md): short hook architecture summary.
+- [Getting Started](docs/development/getting-started.md): install, run, test, build.
+- [Privacy and Permissions](docs/operations/privacy-and-permissions.md): privacy model and hook safety constraints.
+- [AI-Friendly Documentation Research](docs/research/ai-friendly-documentation.md): external research and adopted principles.
+- [ADR 0001](docs/decisions/0001-ai-friendly-documentation.md): decision record for the documentation architecture.
+
+## Current Implementation Notes
+
+- Frontend is Vue, not React.
+- The island collapsed/expanded UI lives in `src/app/IslandApp.vue` and `src/components/island/`.
+- Full settings and diagnostics windows are separate from the island and live under `src/app/FullWindowApp.vue` and `src/components/settings/`.
+- Tauri invoke/event wrappers live in `src/bridge/tauriApi.ts`.
+- Rust adapter and diagnostic types live in `src-tauri/src/adapters/types.rs`.
+- Current real discovery adapters are process/path diagnostics; real state ingestion is planned through official hooks.
+
+## Safety Constraints
+
+- Do not silently modify user Claude Code or Codex config.
+- Hook install must be explicit, previewed, backed up, atomic, and reversible.
+- Hook helper must not output stdout/stderr, must not return decision/context fields, and must exit successfully on failure.
+- Do not store prompt text, assistant responses, full tool input/output, full shell commands, full patches, or transcript content by default.

@@ -1,0 +1,29 @@
+[package]
+name = "agent-island"
+version = "0.1.0"
+description = "A lightweight floating desktop panel for local coding agents"
+authors = ["Agent Island"]
+edition = "2021"
+
+[lib]
+name = "agent_island_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+anyhow = "1"
+chrono = { version = "0.4", features = ["serde"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sysinfo = "0.30"
+tauri = { version = "2", features = ["macos-private-api"] }
+thiserror = "1"
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]
+
+[patch.crates-io]
+dispatch2 = { path = "vendor/dispatch2" }

@@ -1,0 +1,23 @@
+:root {
+  color-scheme: dark;
+  --color-bg: rgba(12, 14, 18, 0.76);
+  --color-bg-strong: rgba(18, 21, 27, 0.9);
+  --color-panel: rgba(23, 27, 35, 0.82);
+  --color-panel-soft: rgba(255, 255, 255, 0.055);
+  --color-border: rgba(255, 255, 255, 0.12);
+  --color-border-strong: rgba(255, 255, 255, 0.2);
+  --color-text: rgba(247, 249, 252, 0.96);
+  --color-muted: rgba(217, 224, 235, 0.64);
+  --color-faint: rgba(217, 224, 235, 0.42);
+  --color-running: #42bff5;
+  --color-tool: #f6b946;
+  --color-waiting: #ff7f50;
+  --color-completed: #55d68b;
+  --color-failed: #ff5f6c;
+  --color-paused: #a6adbb;
+  --shadow-island: 0 18px 48px rgba(0, 0, 0, 0.42), 0 2px 12px rgba(0, 0, 0, 0.24);
+  --radius-pill: 999px;
+  --radius-panel: 22px;
+  --radius-card: 8px;
+  --font-ui: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
