@@ -23,6 +23,12 @@ Rust hook ingest service
 Vue / Pinia / Island UI
 ```
 
+## 会话标题
+
+- Helper 会保存最小化的 `sessionId`，用于把 hook 事件关联到本机 agent 会话历史。
+- Rust ingest 先用 `sessionId` 查对应来源的会话历史标题：Codex 读取 `~/.codex/session_index.jsonl` 的 `thread_name`；Claude Code 读取本机会话索引或匹配的项目会话文件里的标题字段。
+- 找不到历史标题时，任务标题回退为当前工作目录名，保持现有降级逻辑。
+
 ## Helper 约束
 
 - 从 stdin 读取 hook payload。

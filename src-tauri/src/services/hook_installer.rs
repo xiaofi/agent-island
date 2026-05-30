@@ -408,7 +408,7 @@ def clean(value, limit=80):
     return value[:limit] or None
 
 event = clean(pick("hook_event_name", "hookEventName", "event", "event_name")) or "HookEvent"
-session_id = pick("session_id", "sessionId", "conversation_id", "thread_id")
+session_id = clean(pick("session_id", "sessionId", "conversation_id", "thread_id"), 160)
 transcript_path = pick("transcript_path", "transcriptPath")
 cwd = clean(pick("cwd"), 512)
 session_seed = session_id or transcript_path or cwd or "unknown"
@@ -427,6 +427,7 @@ record = {{
     "schemaVersion": 1,
     "source": source,
     "event": event,
+    "sessionId": session_id,
     "sessionKey": session_key,
     "cwd": cwd,
     "timestamp": timestamp,
