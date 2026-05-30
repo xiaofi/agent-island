@@ -18,7 +18,8 @@
 | 修改设置/诊断窗口 | [../product/overview.md](../product/overview.md), [../operations/privacy-and-permissions.md](../operations/privacy-and-permissions.md) | `src/app/FullWindowApp.vue`, `src/components/settings/` |
 | 修改状态模型 | [../architecture/overview.md](../architecture/overview.md) | [../architecture/technical-plan.md](../architecture/technical-plan.md), `src/domain/taskTypes.ts`, `src-tauri/src/adapters/types.rs` |
 | 做 Codex / Claude hook | [../architecture/hook-ingestion.md](../architecture/hook-ingestion.md), [../operations/privacy-and-permissions.md](../operations/privacy-and-permissions.md) | [../architecture/hook-integration-plan.md](../architecture/hook-integration-plan.md), [../decisions/0002-per-source-hook-reception.md](../decisions/0002-per-source-hook-reception.md) |
-| 做 discovery 或 adapter | [../architecture/overview.md](../architecture/overview.md) | `src-tauri/src/adapters/`, `src-tauri/src/services/process_scan.rs` |
+| 做 discovery 或 adapter | [../architecture/overview.md](../architecture/overview.md) | `src-tauri/src/adapters/`, `src-tauri/src/services/config_store.rs` |
+| 改 macOS 悬浮窗或全屏 Space 行为 | [../architecture/overview.md](../architecture/overview.md), [../decisions/0003-macos-fullscreen-overlay.md](../decisions/0003-macos-fullscreen-overlay.md) | `src-tauri/src/lib.rs`, `src-tauri/src/services/island_window.rs`, `src-tauri/src/commands/window.rs` |
 | 改构建或运行方式 | [../development/getting-started.md](../development/getting-started.md) | `package.json`, `src-tauri/Cargo.toml`, `vite.config.ts` |
 | 改文档结构 | [../research/ai-friendly-documentation.md](../research/ai-friendly-documentation.md), [../decisions/0001-ai-friendly-documentation.md](../decisions/0001-ai-friendly-documentation.md) | [../README.md](../README.md), [../../llms.txt](../../llms.txt) |
 
@@ -29,6 +30,7 @@
 - Hook 是状态采集主路径，但只能旁路观测，不能影响 agent 执行。
 - Claude Code 和 Codex 的 hook 接入必须按来源分别由用户打开，不能互相隐式启用；关闭开关必须卸载 Agent Island 自己的 hook command。
 - Discovery 是诊断和降级路径，不依赖私有本地数据结构作为唯一稳定接口。
+- macOS 全屏悬浮优先使用 Accessory 激活策略和窗口 Space 配置；不要把现有 Tauri `NSWindow` 直接改成 `NonactivatingPanel` style。
 - 隐私默认收敛：不采集完整对话、完整工具输入输出或 transcript 内容。
 
 ## 常用验证

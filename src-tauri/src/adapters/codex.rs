@@ -1,19 +1,16 @@
 use std::{fs, path::PathBuf};
 
-use crate::{
-    adapters::types::{now_iso, AdapterDiagnostic, AgentSource, CandidatePath, DiagnosticStatus},
-    services::process_scan::scan_processes,
+use crate::adapters::types::{
+    now_iso, AdapterDiagnostic, AgentSource, CandidatePath, DiagnosticStatus,
 };
 
 pub fn discover() -> AdapterDiagnostic {
-    let processes = scan_processes(&["codex"]);
     let candidate_paths = vec![
-        candidate_path("~/.codex"),
-        candidate_path("~/Library/Application Support/Codex"),
-        candidate_path("~/Library/Logs/Codex"),
+        candidate_path("~/.codex/hooks.json"),
+        candidate_path("~/.codex/config.toml"),
     ];
     let readable_count = candidate_paths.iter().filter(|path| path.readable).count();
-    let parsed_sessions = usize::from(!processes.is_empty() || readable_count > 0);
+    let parsed_sessions = readable_count;
     let status = if parsed_sessions > 0 {
         DiagnosticStatus::Partial
     } else {
@@ -24,11 +21,11 @@ pub fn discover() -> AdapterDiagnostic {
         source: AgentSource::Codex,
         status,
         summary: if parsed_sessions > 0 {
-            "发现 Codex 相关进程或候选数据源；MVP 先以降级任务展示，后续接入事件解析。".to_string()
+            "发现 Codex 配置文件；可安装或验证 Agent Island hook 接入。".to_string()
         } else {
-            "没有发现可用 Codex 进程或本地数据源。".to_string()
+            "没有发现 Codex 配置文件。".to_string()
         },
-        processes,
+        processes: Vec::new(),
         candidate_paths,
         parsed_sessions,
         updated_at: now_iso(),
@@ -51,7 +48,11 @@ fn candidate_path(path: &str) -> CandidatePath {
                 path: path.to_string(),
                 exists: true,
                 readable,
-                reason: if readable { None } else { Some("路径存在但不可读".to_string()) },
+                reason: if readable {
+                    None
+                } else {
+                    Some("路径存在但不可读".to_string())
+                },
                 updated_at: metadata.modified().ok().map(|modified| {
                     let datetime: chrono::DateTime<chrono::Utc> = modified.into();
                     datetime.to_rfc3339()

@@ -55,11 +55,12 @@ Agent Island 是一个轻量级桌面悬浮面板，用于集中展示 Claude Co
 - 左侧：来源状态点或小图标。
 - 中间：最重要的一条状态文本。
 - 右侧：活跃任务数量或等待处理标记。
+- 有未确认的 `completed` 任务时，每个完成任务在压缩态追加一行完成确认；用户点击确认后，这些完成任务从压缩态移除并归档。
 
 示例：
 
 ```text
-Codex 正在运行 · 2 个任务
+Codex 运行中 · 2 个任务
 Claude 等待确认 · 1
 ```
 
@@ -198,12 +199,12 @@ interface AgentEvent {
 2. `failed`：刚失败，需要关注。
 3. `tool-running`：正在执行命令、测试、编辑等动作。
 4. `thinking` / `running`：正常运行中。
-5. `completed`：短暂显示后归档。
+5. `completed`：进入压缩态完成确认队列，用户确认后归档。
 6. `stale` / `paused`：折叠到次要区域。
 
 ## 9. 数据来源与适配器
 
-项目采用 adapter 架构，每个工具独立实现发现和状态解析。真实状态采集优先采用 Claude Code / Codex 官方 hook：hook 只做旁路观测，将生命周期事件写入 Agent Island 本地事件队列；进程扫描、候选路径检测和本地会话文件解析作为 diagnostics 与降级来源。
+项目采用 adapter 架构，每个工具独立实现发现和状态解析。真实状态采集优先采用 Claude Code / Codex 官方 hook：hook 只做旁路观测，将生命周期事件写入 Agent Island 本地事件队列；配置文件 discovery 和候选路径检测作为 diagnostics 与降级来源。
 
 ```ts
 interface AgentAdapter {
@@ -219,8 +220,8 @@ interface AgentAdapter {
 首版目标：
 
 - 接入 Codex 官方 hook，采集 `SessionStart`、`UserPromptSubmit`、`PreToolUse`、`PermissionRequest`、`PostToolUse`、`Stop` 等生命周期事件。
-- 检测正在运行的 Codex 相关进程，作为 hook 未启用或未信任时的降级来源。
-- 探测本机可用的 Codex 会话、线程或终端状态来源，用于诊断，不作为稳定主接口。
+- 检测 Codex 配置文件，作为 hook 未启用或未信任时的接入判断和诊断来源。
+- 探测本机可用的 Codex hook 配置和候选路径，用于诊断，不作为稳定状态主接口。
 - 将当前目标、工作目录、最近工具调用和等待状态归一化为 `AgentTask`。
 
 实现注意：
@@ -229,15 +230,15 @@ interface AgentAdapter {
 - 适配器不应硬编码单一私有路径；需要支持配置和版本探测。
 - 不修改用户已有 hook；安装 hook 必须先 dry-run、备份、原子写入，卸载时只删除 Agent Island 自己的 command。
 - Hook helper 不输出 stdout/stderr，不返回任何会影响 Codex 行为的 decision/context 字段，异常时也返回成功。
-- 无法可靠解析时，应降级为“发现到 Codex 正在运行，但详细状态不可用”。
+- 无法可靠解析时，应降级为“发现到 Codex 配置文件，但详细状态不可用”。
 
 ### 9.2 Claude Code Adapter
 
 首版目标：
 
 - 接入 Claude Code 官方 hook，采集 `SessionStart`、`UserPromptSubmit`、`PreToolUse`、`PermissionRequest`、`Notification`、`PostToolUse`、`Stop`、`SessionEnd` 等生命周期事件。
-- 检测正在运行的 Claude Code 会话，作为 hook 未启用时的降级来源。
-- 根据本地会话记录、日志、shell 进程或配置路径推断工作目录和状态，用于诊断，不作为稳定主接口。
+- 检测 Claude Code 配置文件，作为 hook 未启用时的接入判断和诊断来源。
+- 根据 hook 事件或配置路径推断工作目录和状态，用于诊断，不作为稳定主接口。
 - 识别是否正在等待用户确认、运行工具、生成响应或已经停止。
 
 实现注意：

@@ -2,15 +2,17 @@ import type { AgentTask, TaskStatus } from "@/domain/taskTypes";
 
 export const statusWeight: Record<TaskStatus, number> = {
   "waiting-user": 100,
-  failed: 90,
+  failed: 95,
+  completed: 90,
+  stale: 85,
+  paused: 80,
   "tool-running": 70,
   thinking: 60,
   running: 50,
-  completed: 20,
-  paused: 10,
-  stale: 5,
   discovering: 1,
 };
+
+const attentionStatuses = new Set<TaskStatus>(["waiting-user", "completed", "failed", "stale", "paused"]);
 
 const activeStatuses = new Set<TaskStatus>([
   "discovering",
@@ -18,7 +20,10 @@ const activeStatuses = new Set<TaskStatus>([
   "thinking",
   "tool-running",
   "waiting-user",
+  "completed",
   "failed",
+  "paused",
+  "stale",
 ]);
 
 export function compareTasksByPriority(a: AgentTask, b: AgentTask) {
@@ -36,6 +41,10 @@ export function sortTasksByPriority(tasks: AgentTask[]) {
 
 export function isActiveTask(task: AgentTask) {
   return activeStatuses.has(task.status);
+}
+
+export function needsAttention(task: AgentTask) {
+  return attentionStatuses.has(task.status);
 }
 
 export function pickPrimaryTask(tasks: AgentTask[]) {

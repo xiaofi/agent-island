@@ -80,7 +80,7 @@ MVP 需要证明三件事：
             │                       │
 ┌───────────┴───────────┐   ┌───────┴─────────┐
 │ Agent Adapters         │   │ System Services │
-│ - mock/manual          │   │ - process scan  │
+│ - mock/manual          │   │ - config store   │
 │ - hook adapter         │   │ - file watch    │
 │ - codex discovery      │   │ - hook install  │
 │ - claude discovery     │   │ - open path/app │
@@ -163,7 +163,6 @@ src-tauri/src/
     codex.rs
     claude_code.rs
   services/
-    process_scan.rs
     file_watch.rs
     app_open.rs
     config_store.rs
@@ -180,10 +179,9 @@ src-tauri/src/
 
 - `adapters/types.rs`：定义 Rust 侧 `AgentTask`、`AgentEvent`、`AdapterDiagnostic`。
 - `adapters/mock.rs`：读取本地 JSON 或内置样例，驱动 UI 开发。
-- `adapters/codex.rs`：探测 Codex 进程、配置目录、会话目录和可解析事件文件。
-- `adapters/claude_code.rs`：探测 Claude Code 进程、配置目录、shell 进程和日志候选路径。
+- `adapters/codex.rs`：探测 Codex 配置文件和 hook 接入候选路径。
+- `adapters/claude_code.rs`：探测 Claude Code 配置文件和 hook 接入候选路径。
 - `aggregator`：合并 adapter 结果，去重、更新时间、推断 stale 状态。
-- `services/process_scan.rs`：用 `sysinfo` 读取进程名、命令行、cwd 候选信息。
 - `services/file_watch.rs`：用 `notify` 监听 mock JSON 或真实日志变化。
 - `services/hook_installer.rs`：预览、安装、卸载 Claude Code / Codex hook，保证备份、幂等和只删除自身条目。
 - `services/hook_ingest.rs`：消费 hook helper 写入的本地 JSONL 事件，按来源接入设置过滤后归一化为 `AgentEvent`。
@@ -288,28 +286,26 @@ watch 可以先不强制放进 trait。MVP 阶段先用轮询加文件监听组�
 
 首版不假设 Codex 私有数据结构稳定，先实现 discovery：
 
-- 扫描进程名和命令行中包含 `codex` 的进程。
-- 探测常见配置目录和会话目录，但所有路径都作为候选来源输出。
-- 检查候选目录是否存在、是否可读、最近修改时间。
+- 探测 `~/.codex/hooks.json`、`~/.codex/config.toml` 等配置文件。
+- 检查候选文件是否存在、是否可读、最近修改时间。
 - 对可读 JSONL、JSON、日志文件做轻量解析，只提取事件类型、时间、cwd、工具名和等待状态。
 - 解析失败时返回 diagnostic，不让 UI 崩溃。
 
 输出目标：
 
-- `processes`: 发现到的 Codex 相关进程。
+- `processes`: 不再用于安装判断，保留为空数组以兼容诊断模型。
 - `candidatePaths`: 可读/不可读路径与原因。
 - `parsedSessions`: 能归一化成 `AgentTask` 的会话摘要。
-- `fallbackTask`: 如果只发现进程，生成一个 `running` 或 `discovering` 降级任务。
+- `fallbackTask`: 如果只发现配置文件但没有 hook 事件，生成一个 `discovering` 降级任务。
 
 ### 6.4 Claude Code Discovery
 
 首版策略与 Codex 一致：
 
-- 扫描 `claude`、`claude-code` 相关进程。
-- 探测 CLI 配置目录、项目日志目录、shell 子进程线索。
+- 探测 `~/.claude/settings.json`、`~/.claude/settings.local.json` 等配置文件。
 - 只提取短摘要、工具类型、等待确认、错误摘要和时间。
 - 不展示完整 prompt 或 assistant 回复正文。
-- 无法解析时降级为“发现到 Claude Code 正在运行，但详细状态不可用”。
+- 无法解析时降级为“发现到 Claude Code 配置文件，但详细状态不可用”。
 
 ### 6.5 Hook Adapter
 
@@ -321,7 +317,7 @@ watch 可以先不强制放进 trait。MVP 阶段先用轮询加文件监听组�
 - helper 从 stdin 读取官方 hook JSON，做字段最小化和敏感内容过滤，然后追加到本地 JSONL spool。
 - helper 不输出 stdout/stderr，不返回 decision、permissionDecision、additionalContext、systemMessage 等字段，并在所有异常路径返回 `exit 0`。
 - Rust ingest service 监听 spool，把事件映射为 `AgentEvent` 和 `TaskStatus`。
-- discovery 继续保留，用于进程发现、候选路径诊断、hook 未启用或未 trust 时的降级展示。
+- discovery 继续保留，用于配置文件发现、候选路径诊断、hook 未启用或未 trust 时的降级展示。
 
 必须遵守的配置约束：
 
@@ -345,7 +341,7 @@ watch 可以先不强制放进 trait。MVP 阶段先用轮询加文件监听组�
 建议阈值：
 
 - `stale`: `updatedAt` 超过 10 分钟且无进程心跳。
-- `completed` 展示保留：5 分钟后移入次要区域或隐藏。
+- `completed` 展示保留：进入压缩态完成确认队列，用户确认后从压缩态移除并归档。
 - UI 刷新：前端每秒更新运行时长，Rust 事件按变化推送。
 
 ### 7.2 压缩态排序
@@ -370,7 +366,7 @@ discovering: 1
 {sourceLabel} {statusLabel} · {activeCount} 个任务
 ```
 
-当存在等待用户任务时，右侧显示强调标记；隐私模式下只保留来源和状态。
+当存在等待用户任务时，右侧显示强调标记；当存在未确认的 `completed` 任务时，压缩态按完成任务逐行追加确认项；隐私模式下只保留来源和状态。
 
 ## 8. Tauri 窗口行为
 
@@ -405,7 +401,7 @@ discovering: 1
 
 主要视图：
 
-- 压缩态：状态点、主状态文本、任务数/等待标记。
+- 压缩态：状态点、主状态文本、任务数/等待标记；未确认完成任务逐行显示确认项。
 - 悬浮岛展开态：下拉任务卡片列表，最多优先展示 5-7 个活跃任务。
 - 悬浮岛详情态：轻量元信息、最近事件、错误/等待原因、操作按钮。
 - 独立设置窗口：隐私模式、路径隐藏、标题隐藏、快捷键、鼠标穿透。
@@ -490,7 +486,6 @@ hook-install-status-updated
 Rust：
 
 - adapter parser 单元测试：输入样例日志，输出 `AgentTask`。
-- process scan 测试：命令行过滤逻辑。
 - config store 测试：读写和默认值迁移。
 - aggregator 测试：去重、stale 推断、completed 保留策略。
 

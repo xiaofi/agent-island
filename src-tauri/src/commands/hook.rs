@@ -4,7 +4,10 @@ use crate::{
 };
 
 #[tauri::command]
-pub async fn set_hook_source_enabled(source: AgentSource, enabled: bool) -> Result<AppSettings, String> {
+pub async fn set_hook_source_enabled(
+    source: AgentSource,
+    enabled: bool,
+) -> Result<AppSettings, String> {
     if enabled {
         run_install(source, HookOperation::Install)
     } else {
@@ -13,7 +16,10 @@ pub async fn set_hook_source_enabled(source: AgentSource, enabled: bool) -> Resu
 }
 
 #[tauri::command]
-pub async fn retry_hook_source_operation(source: AgentSource, operation: HookOperation) -> Result<AppSettings, String> {
+pub async fn retry_hook_source_operation(
+    source: AgentSource,
+    operation: HookOperation,
+) -> Result<AppSettings, String> {
     match operation {
         HookOperation::Install => run_install(source, HookOperation::Install),
         HookOperation::Repair => run_install(source, HookOperation::Repair),
@@ -30,9 +36,11 @@ pub async fn run_hook_self_test(source: AgentSource) -> Result<AppSettings, Stri
 fn run_install(source: AgentSource, operation: HookOperation) -> Result<AppSettings, String> {
     match hook_installer::install_source(&source) {
         Ok(()) => {
-            let self_test_result = hook_installer::self_test_source(&source);
             let mut settings = config_store::load_settings();
             set_source_enabled(&mut settings, &source, true);
+            config_store::save_settings(&settings)?;
+
+            let self_test_result = hook_installer::self_test_source(&source);
 
             match self_test_result {
                 Ok(()) => {
@@ -40,7 +48,8 @@ fn run_install(source: AgentSource, operation: HookOperation) -> Result<AppSetti
                     hook_installer::clear_manifest_error(&source)?;
                 }
                 Err(error) => {
-                    let operation_error = hook_installer::operation_error(HookOperation::SelfTest, error);
+                    let operation_error =
+                        hook_installer::operation_error(HookOperation::SelfTest, error);
                     set_source_error(&mut settings, &source, operation_error.clone());
                     hook_installer::persist_manifest_error(&source, &operation_error)?;
                 }

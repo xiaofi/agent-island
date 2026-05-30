@@ -1,27 +1,45 @@
 use tauri::{AppHandle, LogicalSize, Manager, Size, WebviewUrl, WebviewWindowBuilder, Window};
 
+use crate::services::island_window;
+
 #[tauri::command]
-pub async fn set_mouse_passthrough(window: Window, enabled: bool) -> Result<(), String> {
+pub async fn set_mouse_passthrough(app: AppHandle, enabled: bool) -> Result<(), String> {
+    let window = app
+        .get_webview_window("main")
+        .ok_or_else(|| "main window not found".to_string())?;
+
     window
         .set_ignore_cursor_events(enabled)
         .map_err(|error| error.to_string())
 }
 
 #[tauri::command]
-pub async fn set_window_mode(window: Window, expanded: bool) -> Result<(), String> {
+pub async fn set_window_mode(
+    window: Window,
+    expanded: bool,
+    collapsed_height: Option<f64>,
+) -> Result<(), String> {
     let size = if expanded {
         LogicalSize {
-            width: 420.0,
-            height: 500.0,
+            width: 260.0,
+            height: 460.0,
         }
     } else {
         LogicalSize {
-            width: 300.0,
-            height: 52.0,
+            width: 260.0,
+            height: collapsed_height.unwrap_or(44.0).clamp(44.0, 420.0),
         }
     };
 
-    window.set_size(Size::Logical(size)).map_err(|error| error.to_string())
+    window
+        .set_size(Size::Logical(size))
+        .map_err(|error| error.to_string())?;
+
+    if let Some(main_window) = window.app_handle().get_webview_window("main") {
+        island_window::reapply_island_window_level(&main_window)?;
+    }
+
+    Ok(())
 }
 
 #[tauri::command]
@@ -63,6 +81,9 @@ pub async fn toggle_window_visibility(window: Window) -> Result<(), String> {
         window.hide().map_err(|error| error.to_string())
     } else {
         window.show().map_err(|error| error.to_string())?;
+        if let Some(main_window) = window.app_handle().get_webview_window("main") {
+            island_window::reapply_island_window_level(&main_window)?;
+        }
         window.set_focus().map_err(|error| error.to_string())
     }
 }

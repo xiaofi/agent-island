@@ -3,9 +3,24 @@ mod aggregator;
 mod commands;
 mod services;
 
+use tauri::Manager;
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .setup(|app| {
+            #[cfg(target_os = "macos")]
+            app.set_activation_policy(tauri::ActivationPolicy::Accessory);
+
+            let _ = services::hook_installer::refresh_helper_script();
+
+            if let Some(window) = app.get_webview_window("main") {
+                services::island_window::configure_island_window(&window)
+                    .map_err(|error| std::io::Error::new(std::io::ErrorKind::Other, error))?;
+            }
+
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             commands::task::get_tasks,
             commands::discovery::run_discovery,

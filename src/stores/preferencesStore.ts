@@ -32,6 +32,11 @@ export const usePreferencesStore = defineStore("preferences", () => {
   async function load() {
     settings.value = await getSettings();
     loaded.value = true;
+    try {
+      await setMousePassthrough(settings.value.mousePassthrough);
+    } catch (error) {
+      console.warn("[agent-island] failed to apply mouse passthrough preference", error);
+    }
   }
 
   async function patch(patchValue: Partial<AppSettings>) {

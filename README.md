@@ -8,7 +8,7 @@ Agent Island 是一个 macOS 优先的本地桌面悬浮岛，用于展示 Claud
 
 - 桌面壳：Tauri 2。
 - 前端：Vue 3 + TypeScript + Vite + Pinia。
-- 状态采集：Claude Code / Codex 官方 hook 为主路径，process discovery 为降级和诊断路径。
+- 状态采集：Claude Code / Codex 官方 hook 为主路径，配置文件 discovery 为接入判断和诊断路径。
 - UI：悬浮岛承载轻量状态浏览；设置、诊断等复杂流程打开独立窗口。
 
 ## 快速开始

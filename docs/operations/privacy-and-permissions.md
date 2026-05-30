@@ -44,7 +44,7 @@ Hook 安装会修改 Claude Code / Codex 的用户级或项目级配置，因此
 如果 hook 不可用：
 
 - 不阻断 Claude Code / Codex。
-- Agent Island 降级到 process discovery 和候选路径诊断。
+- Agent Island 降级到配置文件 discovery 和候选路径诊断。
 - 诊断窗口显示 hook 未安装、未 trust、配置不可写或被用户禁用等状态。
 - 如果关闭某来源开关时卸载失败，诊断窗口显示失败原因和手动删除指引；不能假装该来源已经关闭。
 - 如果失败状态存在，诊断窗口持续显示并提供重试；重试成功后再清除。

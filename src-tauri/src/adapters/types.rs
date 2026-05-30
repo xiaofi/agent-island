@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 #[serde(rename_all = "kebab-case")]
 pub enum AgentSource {
     Codex,
@@ -187,7 +187,11 @@ pub fn default_settings() -> AppSettings {
             compact_only: false,
         },
         mouse_passthrough: false,
-        enabled_adapters: vec![AgentSource::Manual, AgentSource::Codex, AgentSource::ClaudeCode],
+        enabled_adapters: vec![
+            AgentSource::Manual,
+            AgentSource::Codex,
+            AgentSource::ClaudeCode,
+        ],
         hook_source: default_hook_source_settings(),
     }
 }

@@ -83,14 +83,14 @@ Floating island / diagnostics window
 
 - Hook helper 不直接调用 Tauri command，不依赖 app 是否启动。
 - 事件先进入 append-only 本地 JSONL，主程序启动后再消费。
-- Discovery 仍保留，用于进程发现、路径诊断和 hook 未启用时的降级展示。
+- Discovery 仍保留，用于配置文件发现、路径诊断和 hook 未启用时的降级展示。
 - Hook 接入按来源独立受用户设置控制；Claude Code 和 Codex 不互相隐式启用。
 
 ### 3.1 来源接入开关
 
 Agent Island 区分三个状态：
 
-1. **来源可发现**：可以做进程扫描和候选路径诊断。
+1. **来源可发现**：可以做配置文件 discovery 和候选路径诊断。
 2. **Agent Island hook 已安装**：用户配置中存在 Agent Island 自己的 hook command。
 3. **来源接入已启用**：用户允许 Agent Island 安装该来源 hook 并接收真实 hook 事件。
 
@@ -243,7 +243,7 @@ helper 不向 stdout 输出任何内容，不向 stderr 输出任何内容。所
 
 - `waiting-user` 优先级最高，直到收到新的 `UserPromptSubmit`、`PostToolUse`、`Stop` 或更新事件解除。
 - `tool-running` 如果超过 10 分钟没有 `PostToolUse`，降级为 `stale`，但不判定失败。
-- `completed` 保留 5 分钟后进入次要区域或隐藏。
+- `completed` 进入压缩态完成确认队列，用户确认后从压缩态移除并归档。
 - 只发现进程但没有 hook 事件时，保持 `discovering` 或 `running` 降级任务。
 
 ## 7. 安装策略

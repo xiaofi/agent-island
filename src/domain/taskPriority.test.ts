@@ -23,6 +23,17 @@ describe("taskPriority", () => {
     expect(pickPrimaryTask(tasks)?.id).toBe("waiting");
   });
 
+  it("promotes finished and interrupted tasks above active work", () => {
+    const tasks: AgentTask[] = [
+      { ...baseTask, id: "tool", status: "tool-running", updatedAt: "2026-05-29T12:00:00.000Z" },
+      { ...baseTask, id: "completed", status: "completed", updatedAt: "2026-05-29T09:00:00.000Z" },
+      { ...baseTask, id: "failed", status: "failed", updatedAt: "2026-05-29T08:00:00.000Z" },
+    ];
+
+    expect(sortTasksByPriority(tasks).map((task) => task.id)).toEqual(["failed", "completed", "tool"]);
+    expect(pickPrimaryTask(tasks)?.id).toBe("failed");
+  });
+
   it("uses updatedAt when statuses have the same priority", () => {
     const tasks: AgentTask[] = [
       { ...baseTask, id: "older", updatedAt: "2026-05-29T08:00:00.000Z" },

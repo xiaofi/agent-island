@@ -1,23 +1,32 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { Check } from "@lucide/vue";
 import StatusDot from "@/components/primitives/StatusDot.vue";
 import { startWindowDrag } from "@/bridge/tauriApi";
-import { sourceLabel, statusLabel } from "@/domain/privacy";
+import { statusLabel } from "@/domain/privacy";
 import type { AgentTask } from "@/domain/taskTypes";
 
 const props = defineProps<{
-  task?: AgentTask;
+  completedTasks: AgentTask[];
+  tasks: AgentTask[];
   activeCount: number;
   waitingCount: number;
   loading: boolean;
 }>();
 
 const emit = defineEmits<{
+  acknowledgeCompleted: [taskIds: string[]];
   expand: [];
 }>();
 
 let pointerStart: { x: number; y: number } | undefined;
 let didDrag = false;
+let rotationTimer: number | undefined;
+const taskIndex = ref(0);
+
+const currentTask = computed(() => props.tasks[taskIndex.value]);
+const hasCompletedTasks = computed(() => props.completedTasks.length > 0);
+const metaText = computed(() => (props.waitingCount > 0 ? `${props.waitingCount} 待处理` : `${props.activeCount} 任务`));
 
 function handlePointerDown(event: PointerEvent) {
   if (event.button !== 0) {
@@ -64,31 +73,132 @@ const statusText = computed(() => {
     return "正在发现本地 agent";
   }
 
-  if (!props.task) {
+  if (!currentTask.value) {
     return "暂无活跃任务";
   }
 
-  return `${sourceLabel(props.task.source)} ${statusLabel(props.task.status)}`;
+  return taskText(currentTask.value);
+});
+
+function acknowledgeCompleted() {
+  const taskIds = props.completedTasks.map((task) => task.id);
+  if (taskIds.length) {
+    emit("acknowledgeCompleted", taskIds);
+  }
+}
+
+function showMetaForCompletedRow(index: number) {
+  return props.completedTasks.length > 1 && index === props.completedTasks.length - 1;
+}
+
+function rotateTask() {
+  if (props.tasks.length <= 1) {
+    taskIndex.value = 0;
+    return;
+  }
+
+  taskIndex.value = (taskIndex.value + 1) % props.tasks.length;
+}
+
+function collapsedSourceLabel(source: AgentTask["source"]) {
+  switch (source) {
+    case "codex":
+      return "codex";
+    case "claude-code":
+      return "Claude";
+    case "manual":
+      return "Manual";
+  }
+}
+
+function compactTaskTitle(title: string, source: string) {
+  const escapedSource = source.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return title.replace(new RegExp(`^${escapedSource}\\s*[·:：-]\\s*`, "i"), "").trim() || title;
+}
+
+function taskText(task: AgentTask) {
+  const source = collapsedSourceLabel(task.source);
+  return `${source} · ${statusLabel(task.status)} · ${compactTaskTitle(task.title, source)}`;
+}
+
+watch(
+  () => props.tasks.length,
+  (length) => {
+    if (taskIndex.value >= length) {
+      taskIndex.value = 0;
+    }
+  },
+);
+
+onMounted(() => {
+  rotationTimer = window.setInterval(rotateTask, 5000);
+});
+
+onBeforeUnmount(() => {
+  if (rotationTimer !== undefined) {
+    window.clearInterval(rotationTimer);
+  }
 });
 </script>
 
 <template>
-  <button
+  <div
     class="collapsed-island"
-    type="button"
+    :class="{ 'collapsed-island--stacked': hasCompletedTasks }"
+    role="button"
+    tabindex="0"
     @click="handleClick"
+    @keydown.enter.prevent="handleClick"
+    @keydown.space.prevent="handleClick"
     @pointerdown="handlePointerDown"
     @pointermove="handlePointerMove"
     @pointerup="handlePointerUp"
     @pointercancel="handlePointerUp"
   >
-    <span class="collapsed-island__left">
-      <StatusDot v-if="task" :status="task.status" />
-      <span v-else class="collapsed-island__idle-dot" />
-      <span class="collapsed-island__text">{{ statusText }}</span>
+    <template v-if="hasCompletedTasks">
+      <span
+        v-for="(task, index) in completedTasks"
+        :key="task.id"
+        class="collapsed-island__row collapsed-island__row--confirmation"
+      >
+        <span class="collapsed-island__left">
+          <StatusDot :status="task.status" />
+          <span class="collapsed-island__text">{{ taskText(task) }}</span>
+        </span>
+        <span class="collapsed-island__actions">
+          <span
+            v-if="showMetaForCompletedRow(index)"
+            class="collapsed-island__meta"
+            :class="{ 'collapsed-island__meta--waiting': waitingCount > 0 }"
+          >
+            {{ metaText }}
+          </span>
+          <button
+            v-if="index === 0"
+            class="collapsed-island__ack"
+            type="button"
+            aria-label="确认已收到全部完成提醒"
+            title="确认全部完成提醒"
+            @click.stop="acknowledgeCompleted"
+            @pointerdown.stop
+          >
+            <Check :size="15" />
+          </button>
+        </span>
+      </span>
+    </template>
+
+    <span v-else class="collapsed-island__row">
+      <Transition name="collapsed-carousel" mode="out-in">
+        <span :key="currentTask?.id ?? statusText" class="collapsed-island__left collapsed-island__left--carousel">
+          <StatusDot v-if="currentTask" :status="currentTask.status" />
+          <span v-else class="collapsed-island__idle-dot" />
+          <span class="collapsed-island__text">{{ statusText }}</span>
+        </span>
+      </Transition>
+      <span class="collapsed-island__meta" :class="{ 'collapsed-island__meta--waiting': waitingCount > 0 }">
+        {{ metaText }}
+      </span>
     </span>
-    <span class="collapsed-island__meta" :class="{ 'collapsed-island__meta--waiting': waitingCount > 0 }">
-      {{ waitingCount > 0 ? `${waitingCount} 待处理` : `${activeCount} 任务` }}
-    </span>
-  </button>
+  </div>
 </template>

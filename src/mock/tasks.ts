@@ -108,11 +108,11 @@ export const mockDiagnostics: AdapterDiagnostic[] = [
   {
     source: "codex",
     status: "partial",
-    summary: "浏览器预览模式下使用 mock 数据；Tauri 运行时会扫描 Codex 进程和候选会话目录。",
+    summary: "浏览器预览模式下使用 mock 数据；Tauri 运行时会检查 Codex 配置文件。",
     processes: [],
     candidatePaths: [
       {
-        path: "~/.codex",
+        path: "~/.codex/hooks.json",
         exists: false,
         readable: false,
         reason: "浏览器预览无法读取本地路径",
@@ -124,11 +124,11 @@ export const mockDiagnostics: AdapterDiagnostic[] = [
   {
     source: "claude-code",
     status: "partial",
-    summary: "浏览器预览模式下使用 mock 数据；Tauri 运行时会扫描 Claude Code 进程和候选日志目录。",
+    summary: "浏览器预览模式下使用 mock 数据；Tauri 运行时会检查 Claude Code 配置文件。",
     processes: [],
     candidatePaths: [
       {
-        path: "~/.claude",
+        path: "~/.claude/settings.json",
         exists: false,
         readable: false,
         reason: "浏览器预览无法读取本地路径",

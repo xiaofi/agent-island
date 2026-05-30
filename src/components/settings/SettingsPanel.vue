@@ -15,6 +15,7 @@ type HookUiSource = Extract<AgentSource, "codex" | "claude-code">;
 
 const hookSources: HookUiSource[] = ["claude-code", "codex"];
 const busySource = ref<HookUiSource>();
+const pendingSource = ref<HookUiSource>();
 
 const diagnosticsBySource = computed(() => {
   return Object.fromEntries(taskStore.diagnostics.map((diagnostic) => [diagnostic.source, diagnostic]));
@@ -40,6 +41,9 @@ function errorForSource(source: HookUiSource): HookOperationError | undefined {
 }
 
 function statusText(source: HookUiSource) {
+  if (pendingSource.value === source) {
+    return "等待确认";
+  }
   const error = errorForSource(source);
   if (error) {
     return error.operation === "uninstall" ? "卸载失败" : error.operation === "self-test" ? "自检失败" : "安装失败";
@@ -50,19 +54,28 @@ function statusText(source: HookUiSource) {
   return isEnabled(source) ? "已接入" : "未接入";
 }
 
-async function setSource(source: HookUiSource, enabled: boolean) {
-  if (enabled) {
-    const confirmed = window.confirm(
-      `将为 ${sourceLabel(source)} 安装 Agent Island hook command。此操作会先备份并只追加 Agent Island 自己的配置。`,
-    );
-    if (!confirmed) {
-      return;
-    }
+function hookTargetPath(source: HookUiSource) {
+  return source === "codex" ? "~/.codex/hooks.json" : "~/.claude/settings.json";
+}
+
+function hookEventSummary(source: HookUiSource) {
+  return source === "codex"
+    ? "SessionStart、UserPromptSubmit、PreToolUse、PermissionRequest、PostToolUse、SubagentStart、SubagentStop、Stop"
+    : "SessionStart、UserPromptSubmit、PreToolUse、PermissionRequest、PostToolUse、Notification、Stop、SessionEnd、CwdChanged";
+}
+
+async function setSource(source: HookUiSource, enabled: boolean, confirmed = false) {
+  if (enabled && !confirmed) {
+    pendingSource.value = source;
+    return;
   }
 
   busySource.value = source;
   try {
     await preferencesStore.setHookSource(source, enabled);
+    if (pendingSource.value === source) {
+      pendingSource.value = undefined;
+    }
   } finally {
     busySource.value = undefined;
   }
@@ -71,9 +84,25 @@ async function setSource(source: HookUiSource, enabled: boolean) {
 function handleSourceToggle(source: HookUiSource, event: Event) {
   const input = event.target as HTMLInputElement;
   const enabled = input.checked;
+  if (enabled) {
+    pendingSource.value = source;
+    input.checked = isEnabled(source);
+    return;
+  }
+
   void setSource(source, enabled).finally(() => {
     input.checked = isEnabled(source);
   });
+}
+
+function cancelPendingSource(source: HookUiSource) {
+  if (pendingSource.value === source) {
+    pendingSource.value = undefined;
+  }
+}
+
+async function confirmPendingSource(source: HookUiSource) {
+  await setSource(source, true, true);
 }
 
 async function retrySource(source: HookUiSource, error: HookOperationError) {
@@ -185,6 +214,27 @@ async function selfTest(source: HookUiSource) {
             <small v-else>
               {{ diagnosticsBySource[source]?.summary }}
             </small>
+          </div>
+
+          <div v-if="pendingSource === source" class="hook-confirm">
+            <strong>确认接入 {{ sourceLabel(source) }} 状态</strong>
+            <small>
+              将备份并写入 {{ hookTargetPath(source) }}，只追加 Agent Island 自己的 command，覆盖事件：
+              {{ hookEventSummary(source) }}。helper 只落盘最小状态，不保存 prompt、回复正文、完整工具输入输出或完整 shell command。
+            </small>
+            <div class="hook-confirm__actions">
+              <button
+                class="secondary-button"
+                type="button"
+                :disabled="busySource === source"
+                @click="confirmPendingSource(source)"
+              >
+                确认接入
+              </button>
+              <button class="secondary-button" type="button" :disabled="busySource === source" @click="cancelPendingSource(source)">
+                取消
+              </button>
+            </div>
           </div>
 
           <div class="hook-source-card__actions">

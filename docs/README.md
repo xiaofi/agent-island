@@ -23,6 +23,11 @@
 3. [architecture/hook-integration-plan.md](architecture/hook-integration-plan.md)
 4. [decisions/0002-per-source-hook-reception.md](decisions/0002-per-source-hook-reception.md)
 
+### 做 macOS 悬浮窗和全屏展示
+
+1. [architecture/overview.md](architecture/overview.md)
+2. [decisions/0003-macos-fullscreen-overlay.md](decisions/0003-macos-fullscreen-overlay.md)
+
 ## 文档分层
 
 | 层级 | 文件 | 用途 |

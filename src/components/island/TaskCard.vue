@@ -26,10 +26,12 @@ const projectName = computed(() => projectNameFromPath(props.task.cwd));
         <StatusDot :status="task.status" />
         {{ sourceLabel(task.source) }}
       </span>
-      <span class="task-card__status">{{ statusLabel(task.status) }}</span>
     </span>
 
-    <span class="task-card__title">{{ task.title }}</span>
+    <span class="task-card__title">
+      <span class="task-card__state-title">{{ statusLabel(task.status) }}</span>
+      <span v-if="task.title" class="task-card__conversation-title">{{ task.title }}</span>
+    </span>
 
     <span class="task-card__meta">
       <span>{{ projectName || "未知目录" }}</span>

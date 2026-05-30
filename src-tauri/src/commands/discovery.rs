@@ -1,6 +1,5 @@
 use crate::adapters::{
-    claude_code,
-    codex,
+    claude_code, codex,
     types::{AdapterDiagnostic, AgentSource},
 };
 

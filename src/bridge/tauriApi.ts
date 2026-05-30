@@ -14,6 +14,8 @@ import { cloneMockDiagnostics, cloneMockSettings, cloneMockTasks } from "@/mock/
 
 const isTauri = () => Boolean(window.__TAURI_INTERNALS__);
 
+export const isRunningInTauri = isTauri;
+
 let mockTasks = cloneMockTasks();
 let mockSettings = cloneMockSettings();
 let sequence = 0;
@@ -153,9 +155,9 @@ export async function setMousePassthrough(enabled: boolean): Promise<void> {
   }
 }
 
-export async function setWindowMode(expanded: boolean): Promise<void> {
+export async function setWindowMode(expanded: boolean, collapsedHeight = 44): Promise<void> {
   if (isTauri()) {
-    return invoke("set_window_mode", { expanded });
+    return invoke("set_window_mode", { expanded, collapsedHeight });
   }
 }
 

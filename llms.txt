@@ -27,6 +27,7 @@ Agent Island is a local status layer. It discovers, normalizes, displays, and li
 - [AI-Friendly Documentation Research](docs/research/ai-friendly-documentation.md): external research and adopted principles.
 - [ADR 0001](docs/decisions/0001-ai-friendly-documentation.md): decision record for the documentation architecture.
 - [ADR 0002](docs/decisions/0002-per-source-hook-reception.md): Claude Code and Codex hook integration is controlled separately per source, and disabling a source uninstalls Agent Island's own hook command.
+- [ADR 0003](docs/decisions/0003-macos-fullscreen-overlay.md): macOS full-screen overlay uses Accessory activation policy and keeps native `NSPanel` as the fallback path.
 
 ## Current Implementation Notes
 
@@ -35,7 +36,9 @@ Agent Island is a local status layer. It discovers, normalizes, displays, and li
 - Full settings and diagnostics windows are separate from the island and live under `src/app/FullWindowApp.vue` and `src/components/settings/`.
 - Tauri invoke/event wrappers live in `src/bridge/tauriApi.ts`.
 - Rust adapter and diagnostic types live in `src-tauri/src/adapters/types.rs`.
-- Current real discovery adapters are process/path diagnostics; real state ingestion is planned through official hooks.
+- macOS full-screen overlay behavior is configured in `src-tauri/src/lib.rs` and `src-tauri/src/services/island_window.rs`.
+- Tauri task loading uses config-file discovery as a fallback and does not show mock tasks; browser preview still uses mock tasks.
+- Detailed real state ingestion is planned through official hooks and remains source-gated by user settings.
 
 ## Safety Constraints
 

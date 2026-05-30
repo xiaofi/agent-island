@@ -1,6 +1,6 @@
 # Architecture Overview
 
-Agent Island 采用 Vue 前端 + Tauri Rust 后台的本地架构。前端负责展示和交互，Rust 侧负责进程扫描、配置、窗口控制、adapter discovery 和后续 hook ingest。
+Agent Island 采用 Vue 前端 + Tauri Rust 后台的本地架构。前端负责展示和交互，Rust 侧负责配置文件 discovery、配置读写、窗口控制和后续 hook ingest。
 
 ## 系统分层
 
@@ -20,8 +20,7 @@ Rust Core
         │
 Local Sources
   hook event spool
-  process list
-  candidate config/session paths
+  candidate config paths
   app config
 ```
 
@@ -36,15 +35,15 @@ Local Sources
 
 ## Rust 模块
 
-- `src-tauri/src/adapters/`：Codex、Claude Code、mock/manual adapter 和共享类型。
+- `src-tauri/src/adapters/`：Codex、Claude Code discovery adapter 和共享类型。
 - `src-tauri/src/commands/`：Tauri commands，包括任务、设置、诊断、窗口。
-- `src-tauri/src/services/`：进程扫描、配置读写、打开应用或目录等系统能力。
+- `src-tauri/src/services/`：配置读写、hook 安装、窗口控制、打开应用或目录等系统能力。
 - `src-tauri/src/aggregator/`：任务合并、去重和状态推断。
 
 ## 数据流
 
 ```text
-hook / discovery / mock
+hook / discovery
         │
 Rust adapter or ingest service
         │ AgentTask / AgentEvent
@@ -58,6 +57,6 @@ Island UI and diagnostics UI
 
 ## 当前真实采集策略
 
-真实状态采集优先使用官方 hook。Hook 未启用、未 trust 或不可用时，系统降级到进程扫描和候选路径诊断。详细设计见 [hook-ingestion.md](hook-ingestion.md) 和 [hook-integration-plan.md](hook-integration-plan.md)。
+真实状态采集优先使用官方 hook。Hook 未启用、未 trust 或不可用时，系统降级到配置文件 discovery 和候选路径诊断；Tauri 运行时的悬浮岛任务列表不展示 mock，会从 discovery 结果生成降级任务。浏览器预览模式仍使用 mock 便于 UI 开发。详细设计见 [hook-ingestion.md](hook-ingestion.md) 和 [hook-integration-plan.md](hook-integration-plan.md)。
 
 完整技术方案见 [technical-plan.md](technical-plan.md)。
