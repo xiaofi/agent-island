@@ -26,6 +26,10 @@ const taskIndex = ref(0);
 
 const currentTask = computed(() => props.tasks[taskIndex.value]);
 const hasCompletedTasks = computed(() => props.completedTasks.length > 0);
+const hasCompletedOverflow = computed(() => props.completedTasks.length > 5);
+const visibleCompletedTasks = computed(() =>
+  hasCompletedOverflow.value ? props.completedTasks.slice(0, 4) : props.completedTasks.slice(0, 5),
+);
 const metaText = computed(() => (props.waitingCount > 0 ? `${props.waitingCount} 待处理` : `${props.activeCount} 任务`));
 
 function handlePointerDown(event: PointerEvent) {
@@ -80,15 +84,14 @@ const statusText = computed(() => {
   return taskText(currentTask.value);
 });
 
-function acknowledgeCompleted() {
-  const taskIds = props.completedTasks.map((task) => task.id);
-  if (taskIds.length) {
-    emit("acknowledgeCompleted", taskIds);
+function acknowledgeCompleted(taskId: string) {
+  if (taskId) {
+    emit("acknowledgeCompleted", [taskId]);
   }
 }
 
 function showMetaForCompletedRow(index: number) {
-  return props.completedTasks.length > 1 && index === props.completedTasks.length - 1;
+  return !hasCompletedOverflow.value && visibleCompletedTasks.value.length > 1 && index === visibleCompletedTasks.value.length - 1;
 }
 
 function rotateTask() {
@@ -157,7 +160,7 @@ onBeforeUnmount(() => {
   >
     <template v-if="hasCompletedTasks">
       <span
-        v-for="(task, index) in completedTasks"
+        v-for="(task, index) in visibleCompletedTasks"
         :key="task.id"
         class="collapsed-island__row collapsed-island__row--confirmation"
       >
@@ -174,16 +177,26 @@ onBeforeUnmount(() => {
             {{ metaText }}
           </span>
           <button
-            v-if="index === 0"
             class="collapsed-island__ack"
             type="button"
-            aria-label="确认已收到全部完成提醒"
-            title="确认全部完成提醒"
-            @click.stop="acknowledgeCompleted"
+            :aria-label="`确认已收到 ${task.title} 完成提醒`"
+            title="确认完成提醒"
+            @click.stop="acknowledgeCompleted(task.id)"
             @pointerdown.stop
           >
             <Check :size="15" />
           </button>
+        </span>
+      </span>
+      <span
+        v-if="hasCompletedOverflow"
+        class="collapsed-island__row collapsed-island__row--confirmation collapsed-island__row--overflow"
+      >
+        <span class="collapsed-island__left">
+          <span class="collapsed-island__text">请点击展开列表查看</span>
+        </span>
+        <span class="collapsed-island__meta" :class="{ 'collapsed-island__meta--waiting': waitingCount > 0 }">
+          {{ metaText }}
         </span>
       </span>
     </template>

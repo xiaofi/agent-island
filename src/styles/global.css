@@ -114,7 +114,7 @@ button {
 
 .app-shell:not(.app-shell--expanded) .island-window {
   width: min(100vw, 260px);
-  height: 100vh;
+  height: var(--collapsed-height, 44px);
 }
 
 .app-shell--expanded .island-window {
@@ -127,7 +127,7 @@ button {
 }
 
 .island-trigger {
-  height: 100%;
+  height: var(--collapsed-height, 44px);
   flex: none;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-pill);
@@ -135,10 +135,6 @@ button {
   box-shadow: none;
   backdrop-filter: blur(22px) saturate(1.24);
   -webkit-backdrop-filter: blur(22px) saturate(1.24);
-}
-
-.app-shell--expanded .island-trigger {
-  height: var(--collapsed-height, 44px);
 }
 
 .collapsed-island {
@@ -184,6 +180,10 @@ button {
 
 .collapsed-island__row--confirmation + .collapsed-island__row--confirmation {
   border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.collapsed-island__row--overflow {
+  cursor: pointer;
 }
 
 .collapsed-island__left {
@@ -483,9 +483,15 @@ button {
 }
 
 .task-card:hover,
-.task-card--selected {
+.task-card--selected,
+.task-card:focus-visible {
   border-color: var(--color-border-strong);
   background: rgba(255, 255, 255, 0.1);
+}
+
+.task-card:focus-visible {
+  outline: 2px solid rgba(66, 191, 245, 0.55);
+  outline-offset: 2px;
 }
 
 .task-card__top,
@@ -512,6 +518,29 @@ button {
   color: var(--color-faint);
   font-size: 11px;
   font-weight: 700;
+}
+
+.task-card__ack {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  flex: none;
+  place-items: center;
+  border: 1px solid rgba(95, 214, 139, 0.52);
+  border-radius: 50%;
+  background: rgba(95, 214, 139, 0.14);
+  color: #c9f8d5;
+  cursor: pointer;
+}
+
+.task-card__ack:hover,
+.task-card__ack:focus-visible {
+  background: rgba(95, 214, 139, 0.22);
+}
+
+.task-card__ack:focus-visible {
+  outline: 2px solid rgba(95, 214, 139, 0.45);
+  outline-offset: 2px;
 }
 
 .task-card__title {

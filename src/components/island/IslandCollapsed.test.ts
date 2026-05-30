@@ -50,9 +50,39 @@ describe("IslandCollapsed", () => {
     expect(rows[1].text()).toContain("codex · 已完成 · agent-island");
     expect(wrapper.text()).toContain("3 任务");
 
-    await wrapper.find(".collapsed-island__ack").trigger("click");
+    const ackButtons = wrapper.findAll(".collapsed-island__ack");
+    expect(ackButtons).toHaveLength(2);
 
-    expect(wrapper.emitted("acknowledgeCompleted")).toEqual([[["task-cmux", "task-agent-island"]]]);
+    await ackButtons[1].trigger("click");
+
+    expect(wrapper.emitted("acknowledgeCompleted")).toEqual([[["task-agent-island"]]]);
+  });
+
+  it("caps completed confirmation rows and sends overflow users to the list", async () => {
+    const wrapper = mount(IslandCollapsed, {
+      props: {
+        completedTasks: [
+          completedTask("task-1", "one"),
+          completedTask("task-2", "two"),
+          completedTask("task-3", "three"),
+          completedTask("task-4", "four"),
+          completedTask("task-5", "five"),
+          completedTask("task-6", "six"),
+        ],
+        tasks: [],
+        activeCount: 6,
+        waitingCount: 0,
+        loading: false,
+      },
+    });
+
+    expect(wrapper.findAll(".collapsed-island__row--confirmation")).toHaveLength(5);
+    expect(wrapper.findAll(".collapsed-island__ack")).toHaveLength(4);
+    expect(wrapper.text()).toContain("请点击展开列表查看");
+
+    await wrapper.find(".collapsed-island__row--overflow").trigger("click");
+
+    expect(wrapper.emitted("expand")).toHaveLength(1);
   });
 
   it("rotates active tasks on the carousel interval", async () => {

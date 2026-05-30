@@ -9,6 +9,7 @@ defineProps<{
 
 defineEmits<{
   selectTask: [taskId: string];
+  acknowledgeCompleted: [taskId: string];
 }>();
 </script>
 
@@ -20,6 +21,7 @@ defineEmits<{
       :task="task"
       :selected="task.id === selectedTaskId"
       @select="$emit('selectTask', task.id)"
+      @acknowledge-completed="$emit('acknowledgeCompleted', task.id)"
     />
     <div v-if="tasks.length === 0" class="empty-state">
       <p>没有发现活跃 agent 会话</p>
