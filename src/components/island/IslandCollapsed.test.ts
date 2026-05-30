@@ -1,108 +1,128 @@
 // @vitest-environment happy-dom
 
 import { mount } from "@vue/test-utils";
-import { nextTick } from "vue";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import IslandCollapsed from "@/components/island/IslandCollapsed.vue";
-import type { AgentTask } from "@/domain/taskTypes";
+import type { AgentTask, TaskStatus } from "@/domain/taskTypes";
 
-function completedTask(id: string, title: string): AgentTask {
+function task(id: string, title: string, status: TaskStatus): AgentTask {
   return {
     id,
     source: "codex",
     title,
-    status: "completed",
-    updatedAt: "2026-05-30T01:00:00.000Z",
-    events: [],
-  };
-}
-
-function activeTask(id: string, title: string): AgentTask {
-  return {
-    id,
-    source: "codex",
-    title,
-    status: "running",
+    status,
     updatedAt: "2026-05-30T01:00:00.000Z",
     events: [],
   };
 }
 
 describe("IslandCollapsed", () => {
-  afterEach(() => {
-    vi.useRealTimers();
-  });
-
-  it("renders each completed task as its own confirmation row", async () => {
+  it("keeps a single attention item in the compact island shape", async () => {
     const wrapper = mount(IslandCollapsed, {
       props: {
-        completedTasks: [completedTask("task-cmux", "cmux"), completedTask("task-agent-island", "agent-island")],
-        tasks: [],
-        activeCount: 3,
-        waitingCount: 0,
+        alertTasks: [task("task-cmux", "cmux", "completed")],
+        runningCount: 3,
         loading: false,
+        expanded: false,
       },
     });
 
-    const rows = wrapper.findAll(".collapsed-island__row--confirmation");
-    expect(rows).toHaveLength(2);
-    expect(rows[0].text()).toContain("codex · 已完成 · cmux");
-    expect(rows[1].text()).toContain("codex · 已完成 · agent-island");
-    expect(wrapper.text()).toContain("3 任务");
+    expect(wrapper.find(".collapsed-island").classes()).not.toContain("collapsed-island--stacked");
+    expect(wrapper.findAll(".collapsed-island__row")).toHaveLength(1);
+    expect(wrapper.text()).toContain("codex · 已完成 · cmux");
+    expect(wrapper.text()).toContain("显示全部任务");
+    expect(wrapper.text()).not.toContain("3 个任务进行中");
 
-    const ackButtons = wrapper.findAll(".collapsed-island__ack");
-    expect(ackButtons).toHaveLength(2);
+    await wrapper.find(".collapsed-island__ack").trigger("click");
 
-    await ackButtons[1].trigger("click");
-
-    expect(wrapper.emitted("acknowledgeCompleted")).toEqual([[["task-agent-island"]]]);
+    expect(wrapper.emitted("acknowledgeCompleted")).toEqual([[["task-cmux"]]]);
+    expect(wrapper.emitted("expand")).toBeUndefined();
   });
 
-  it("caps completed confirmation rows and sends overflow users to the list", async () => {
+  it("renders multiple attention rows above the running summary row", async () => {
     const wrapper = mount(IslandCollapsed, {
       props: {
-        completedTasks: [
-          completedTask("task-1", "one"),
-          completedTask("task-2", "two"),
-          completedTask("task-3", "three"),
-          completedTask("task-4", "four"),
-          completedTask("task-5", "five"),
-          completedTask("task-6", "six"),
-        ],
-        tasks: [],
-        activeCount: 6,
-        waitingCount: 0,
+        alertTasks: [task("task-cmux", "cmux", "completed"), task("task-agent-island", "agent-island", "waiting-user")],
+        runningCount: 3,
         loading: false,
+        expanded: false,
       },
     });
 
-    expect(wrapper.findAll(".collapsed-island__row--confirmation")).toHaveLength(5);
-    expect(wrapper.findAll(".collapsed-island__ack")).toHaveLength(4);
-    expect(wrapper.text()).toContain("请点击展开列表查看");
+    expect(wrapper.find(".collapsed-island").classes()).toContain("collapsed-island--stacked");
+    const alertRows = wrapper.findAll(".collapsed-island__row--alert");
+    expect(alertRows).toHaveLength(2);
+    expect(alertRows[0].text()).toContain("codex · 已完成 · cmux");
+    expect(alertRows[1].text()).toContain("codex · 等待处理 · agent-island");
 
-    await wrapper.find(".collapsed-island__row--overflow").trigger("click");
+    const summaryRow = wrapper.find(".collapsed-island__row--summary");
+    expect(summaryRow.text()).toContain("3 个任务进行中");
+    expect(summaryRow.text()).toContain("显示全部任务");
+    expect(summaryRow.find(".status-dot--running").exists()).toBe(true);
 
+    await alertRows[1].trigger("click");
+    expect(wrapper.emitted("expand")).toBeUndefined();
+
+    await summaryRow.trigger("click");
     expect(wrapper.emitted("expand")).toHaveLength(1);
   });
 
-  it("rotates active tasks on the carousel interval", async () => {
-    vi.useFakeTimers();
-
+  it("keeps completion acknowledgement on completed alert rows", async () => {
     const wrapper = mount(IslandCollapsed, {
       props: {
-        completedTasks: [],
-        tasks: [activeTask("task-cmux", "cmux"), activeTask("task-agent-island", "agent-island")],
-        activeCount: 2,
-        waitingCount: 0,
+        alertTasks: [task("task-cmux", "cmux", "completed"), task("task-agent-island", "agent-island", "failed")],
+        runningCount: 1,
         loading: false,
+        expanded: false,
       },
     });
 
-    expect(wrapper.text()).toContain("codex · 运行中 · cmux");
+    const ackButtons = wrapper.findAll(".collapsed-island__ack");
+    expect(ackButtons).toHaveLength(1);
 
-    vi.advanceTimersByTime(5000);
-    await nextTick();
+    await ackButtons[0].trigger("click");
 
-    expect(wrapper.text()).toContain("codex · 运行中 · agent-island");
+    expect(wrapper.emitted("acknowledgeCompleted")).toEqual([[["task-cmux"]]]);
+    expect(wrapper.emitted("expand")).toBeUndefined();
+  });
+
+  it("caps attention rows and points users to the full task list from the summary row", async () => {
+    const wrapper = mount(IslandCollapsed, {
+      props: {
+        alertTasks: [
+          task("task-1", "one", "completed"),
+          task("task-2", "two", "waiting-user"),
+          task("task-3", "three", "failed"),
+          task("task-4", "four", "paused"),
+          task("task-5", "five", "stale"),
+        ],
+        runningCount: 2,
+        loading: false,
+        expanded: false,
+      },
+    });
+
+    expect(wrapper.findAll(".collapsed-island__row--alert")).toHaveLength(4);
+    expect(wrapper.text()).toContain("另有 2 条任务需要关注");
+
+    await wrapper.find(".collapsed-island__row--overflow").trigger("click");
+    expect(wrapper.emitted("expand")).toBeUndefined();
+
+    await wrapper.find(".collapsed-island__row--summary").trigger("click");
+    expect(wrapper.emitted("expand")).toHaveLength(1);
+  });
+
+  it("switches the summary action label when the task list is expanded", () => {
+    const wrapper = mount(IslandCollapsed, {
+      props: {
+        alertTasks: [],
+        runningCount: 2,
+        loading: false,
+        expanded: true,
+      },
+    });
+
+    expect(wrapper.find(".collapsed-island__row--summary").text()).toContain("收起列表");
+    expect(wrapper.text()).not.toContain("显示全部任务");
   });
 });

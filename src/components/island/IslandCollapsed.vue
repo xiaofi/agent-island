@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { computed } from "vue";
 import { Check } from "@lucide/vue";
 import StatusDot from "@/components/primitives/StatusDot.vue";
 import { startWindowDrag } from "@/bridge/tauriApi";
@@ -7,11 +7,10 @@ import { statusLabel } from "@/domain/privacy";
 import type { AgentTask } from "@/domain/taskTypes";
 
 const props = defineProps<{
-  completedTasks: AgentTask[];
-  tasks: AgentTask[];
-  activeCount: number;
-  waitingCount: number;
+  alertTasks: AgentTask[];
+  runningCount: number;
   loading: boolean;
+  expanded: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -21,16 +20,34 @@ const emit = defineEmits<{
 
 let pointerStart: { x: number; y: number } | undefined;
 let didDrag = false;
-let rotationTimer: number | undefined;
-const taskIndex = ref(0);
 
-const currentTask = computed(() => props.tasks[taskIndex.value]);
-const hasCompletedTasks = computed(() => props.completedTasks.length > 0);
-const hasCompletedOverflow = computed(() => props.completedTasks.length > 5);
-const visibleCompletedTasks = computed(() =>
-  hasCompletedOverflow.value ? props.completedTasks.slice(0, 4) : props.completedTasks.slice(0, 5),
+const hasAlertTasks = computed(() => props.alertTasks.length > 0);
+const isStacked = computed(() => props.alertTasks.length > 1);
+const hasAlertOverflow = computed(() => props.alertTasks.length > 4);
+const visibleAlertTasks = computed(() =>
+  hasAlertOverflow.value ? props.alertTasks.slice(0, 3) : props.alertTasks.slice(0, 4),
 );
-const metaText = computed(() => (props.waitingCount > 0 ? `${props.waitingCount} 待处理` : `${props.activeCount} 任务`));
+const hiddenAlertCount = computed(() => props.alertTasks.length - visibleAlertTasks.value.length);
+const primaryAlertTask = computed(() => props.alertTasks[0]);
+const runningSummaryText = computed(() => {
+  if (props.loading) {
+    return "正在发现本地 agent";
+  }
+
+  return props.runningCount > 0 ? `${props.runningCount} 个任务进行中` : "暂无任务进行中";
+});
+const primaryRowText = computed(() => {
+  const task = primaryAlertTask.value;
+  return task ? taskText(task) : runningSummaryText.value;
+});
+const summaryDotStatus = computed(() => {
+  if (isStacked.value || !primaryAlertTask.value) {
+    return props.loading ? "discovering" : "running";
+  }
+
+  return primaryAlertTask.value.status;
+});
+const summaryActionText = computed(() => (props.expanded ? "收起列表" : "显示全部任务"));
 
 function handlePointerDown(event: PointerEvent) {
   if (event.button !== 0) {
@@ -72,35 +89,10 @@ function handleClick() {
   emit("expand");
 }
 
-const statusText = computed(() => {
-  if (props.loading) {
-    return "正在发现本地 agent";
-  }
-
-  if (!currentTask.value) {
-    return "暂无活跃任务";
-  }
-
-  return taskText(currentTask.value);
-});
-
 function acknowledgeCompleted(taskId: string) {
   if (taskId) {
     emit("acknowledgeCompleted", [taskId]);
   }
-}
-
-function showMetaForCompletedRow(index: number) {
-  return !hasCompletedOverflow.value && visibleCompletedTasks.value.length > 1 && index === visibleCompletedTasks.value.length - 1;
-}
-
-function rotateTask() {
-  if (props.tasks.length <= 1) {
-    taskIndex.value = 0;
-    return;
-  }
-
-  taskIndex.value = (taskIndex.value + 1) % props.tasks.length;
 }
 
 function collapsedSourceLabel(source: AgentTask["source"]) {
@@ -123,60 +115,23 @@ function taskText(task: AgentTask) {
   const source = collapsedSourceLabel(task.source);
   return `${source} · ${statusLabel(task.status)} · ${compactTaskTitle(task.title, source)}`;
 }
-
-watch(
-  () => props.tasks.length,
-  (length) => {
-    if (taskIndex.value >= length) {
-      taskIndex.value = 0;
-    }
-  },
-);
-
-onMounted(() => {
-  rotationTimer = window.setInterval(rotateTask, 5000);
-});
-
-onBeforeUnmount(() => {
-  if (rotationTimer !== undefined) {
-    window.clearInterval(rotationTimer);
-  }
-});
 </script>
 
 <template>
-  <div
-    class="collapsed-island"
-    :class="{ 'collapsed-island--stacked': hasCompletedTasks }"
-    role="button"
-    tabindex="0"
-    @click="handleClick"
-    @keydown.enter.prevent="handleClick"
-    @keydown.space.prevent="handleClick"
-    @pointerdown="handlePointerDown"
-    @pointermove="handlePointerMove"
-    @pointerup="handlePointerUp"
-    @pointercancel="handlePointerUp"
-  >
-    <template v-if="hasCompletedTasks">
+  <div class="collapsed-island" :class="{ 'collapsed-island--stacked': isStacked }">
+    <template v-if="isStacked">
       <span
-        v-for="(task, index) in visibleCompletedTasks"
+        v-for="task in visibleAlertTasks"
         :key="task.id"
-        class="collapsed-island__row collapsed-island__row--confirmation"
+        class="collapsed-island__row collapsed-island__row--alert"
       >
         <span class="collapsed-island__left">
           <StatusDot :status="task.status" />
           <span class="collapsed-island__text">{{ taskText(task) }}</span>
         </span>
         <span class="collapsed-island__actions">
-          <span
-            v-if="showMetaForCompletedRow(index)"
-            class="collapsed-island__meta"
-            :class="{ 'collapsed-island__meta--waiting': waitingCount > 0 }"
-          >
-            {{ metaText }}
-          </span>
           <button
+            v-if="task.status === 'completed'"
             class="collapsed-island__ack"
             type="button"
             :aria-label="`确认已收到 ${task.title} 完成提醒`"
@@ -184,33 +139,52 @@ onBeforeUnmount(() => {
             @click.stop="acknowledgeCompleted(task.id)"
             @pointerdown.stop
           >
-            <Check :size="15" />
+            <Check :size="13" />
           </button>
         </span>
       </span>
       <span
-        v-if="hasCompletedOverflow"
-        class="collapsed-island__row collapsed-island__row--confirmation collapsed-island__row--overflow"
+        v-if="hasAlertOverflow"
+        class="collapsed-island__row collapsed-island__row--alert collapsed-island__row--overflow"
       >
         <span class="collapsed-island__left">
-          <span class="collapsed-island__text">请点击展开列表查看</span>
-        </span>
-        <span class="collapsed-island__meta" :class="{ 'collapsed-island__meta--waiting': waitingCount > 0 }">
-          {{ metaText }}
+          <span class="collapsed-island__text">另有 {{ hiddenAlertCount }} 条任务需要关注</span>
         </span>
       </span>
     </template>
 
-    <span v-else class="collapsed-island__row">
-      <Transition name="collapsed-carousel" mode="out-in">
-        <span :key="currentTask?.id ?? statusText" class="collapsed-island__left collapsed-island__left--carousel">
-          <StatusDot v-if="currentTask" :status="currentTask.status" />
-          <span v-else class="collapsed-island__idle-dot" />
-          <span class="collapsed-island__text">{{ statusText }}</span>
+    <span
+      class="collapsed-island__row collapsed-island__row--summary"
+      role="button"
+      tabindex="0"
+      @click="handleClick"
+      @keydown.enter.prevent="handleClick"
+      @keydown.space.prevent="handleClick"
+      @pointerdown="handlePointerDown"
+      @pointermove="handlePointerMove"
+      @pointerup="handlePointerUp"
+      @pointercancel="handlePointerUp"
+    >
+      <span class="collapsed-island__left">
+        <StatusDot v-if="primaryAlertTask || runningCount > 0 || loading" :status="summaryDotStatus" />
+        <span v-else class="collapsed-island__idle-dot" />
+        <span class="collapsed-island__text">{{ isStacked ? runningSummaryText : primaryRowText }}</span>
+      </span>
+      <span class="collapsed-island__actions">
+        <span class="collapsed-island__meta">
+          {{ summaryActionText }}
         </span>
-      </Transition>
-      <span class="collapsed-island__meta" :class="{ 'collapsed-island__meta--waiting': waitingCount > 0 }">
-        {{ metaText }}
+        <button
+          v-if="!isStacked && primaryAlertTask?.status === 'completed'"
+          class="collapsed-island__ack"
+          type="button"
+          :aria-label="`确认已收到 ${primaryAlertTask.title} 完成提醒`"
+          title="确认完成提醒"
+          @click.stop="acknowledgeCompleted(primaryAlertTask.id)"
+          @pointerdown.stop
+        >
+          <Check :size="12" />
+        </button>
       </span>
     </span>
   </div>

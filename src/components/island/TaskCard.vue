@@ -47,7 +47,7 @@ const isCompleted = computed(() => props.task.status === "completed");
         @keydown.enter.stop
         @keydown.space.stop
       >
-        <Check :size="15" />
+        <Check :size="13" />
       </button>
     </span>
 

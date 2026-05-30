@@ -7,6 +7,8 @@ import TaskDetail from "@/components/island/TaskDetail.vue";
 import IconButton from "@/components/primitives/IconButton.vue";
 import { openAppWindow, setWindowMode, startWindowDrag } from "@/bridge/tauriApi";
 import { maskTask } from "@/domain/privacy";
+import { needsAttention } from "@/domain/taskPriority";
+import type { AgentTask } from "@/domain/taskTypes";
 import { usePreferencesStore } from "@/stores/preferencesStore";
 import { useTaskStore } from "@/stores/taskStore";
 
@@ -26,35 +28,29 @@ const selectedVisibleTask = computed(() => {
   const task = selectedRawTask.value;
   return task ? maskTask(task, preferencesStore.privacy) : undefined;
 });
-const completedAlertTasks = computed(() =>
-  taskStore.completedAlertTasks.map((task) => maskTask(task, preferencesStore.privacy)),
+const collapsedAlertTasks = computed(() =>
+  taskStore.sortedTasks.filter(needsAttention).map((task) => maskTask(task, preferencesStore.privacy)),
 );
-const collapsedTasks = computed(() => {
-  const completedAlertTaskIds = new Set(taskStore.completedAlertTasks.map((task) => task.id));
-  const sortedTasks = taskStore.sortedTasks.filter((task) => !completedAlertTaskIds.has(task.id));
-
-  if (completedAlertTaskIds.size) {
-    return sortedTasks.map((task) => maskTask(task, preferencesStore.privacy));
-  }
-
-  const attentionTasks = taskStore.attentionTasks.filter((task) => !completedAlertTaskIds.has(task.id));
-  if (attentionTasks.length) {
-    return [maskTask(attentionTasks[0], preferencesStore.privacy)];
-  }
-
-  const activeTasks = taskStore.activeTasks.filter((task) => !completedAlertTaskIds.has(task.id));
-  const tasks = activeTasks.length ? activeTasks : sortedTasks;
-  return tasks.map((task) => maskTask(task, preferencesStore.privacy));
-});
+const runningSummaryCount = computed(() => taskStore.tasks.filter(isRunningSummaryTask).length);
 
 const collapsedHeight = computed(() => {
-  const completedRowCount = Math.min(completedAlertTasks.value.length, 5);
-  if (!completedRowCount) {
+  const alertRowCount = Math.min(collapsedAlertTasks.value.length, 4);
+  if (alertRowCount <= 1) {
     return 44;
   }
 
-  return Math.max(44, 12 + completedRowCount * 32);
+  return Math.max(44, 12 + (alertRowCount + 1) * 30);
 });
+const hasStackedCollapsedRows = computed(() => collapsedAlertTasks.value.length > 1);
+
+function isRunningSummaryTask(task: AgentTask) {
+  return (
+    task.status === "discovering" ||
+    task.status === "running" ||
+    task.status === "thinking" ||
+    task.status === "tool-running"
+  );
+}
 
 async function showList() {
   mode.value = "list";
@@ -144,13 +140,12 @@ async function applyWindowMode(expanded: boolean) {
 <template>
   <main class="app-shell" :class="{ 'app-shell--expanded': isLayoutExpanded }">
     <section class="island-window" :style="{ '--collapsed-height': `${collapsedHeight}px` }">
-      <div class="island-trigger">
+      <div class="island-trigger" :class="{ 'island-trigger--stacked': hasStackedCollapsedRows }">
         <IslandCollapsed
-          :completed-tasks="completedAlertTasks"
-          :tasks="collapsedTasks"
-          :active-count="taskStore.activeTasks.length"
-          :waiting-count="taskStore.waitingCount"
+          :alert-tasks="collapsedAlertTasks"
+          :running-count="runningSummaryCount"
           :loading="taskStore.loading"
+          :expanded="isLayoutExpanded"
           @acknowledge-completed="taskStore.acknowledgeCompletedTasks"
           @expand="toggleIsland"
         />
