@@ -2,5 +2,12 @@ node_modules/
 dist/
 src-tauri/target/
 
+# Local release artifacts
+*.app
+*.app.tar.gz
+*.dmg
+*.pkg
+*.sig
+
 .DS_Store
 *.log

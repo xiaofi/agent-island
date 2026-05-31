@@ -22,7 +22,10 @@ let pointerStart: { x: number; y: number } | undefined;
 let didDrag = false;
 
 const hasAlertTasks = computed(() => props.alertTasks.length > 0);
-const isStacked = computed(() => props.alertTasks.length > 1);
+const hasRunningSummary = computed(() => props.runningCount > 0 || props.loading);
+const isStacked = computed(
+  () => props.alertTasks.length > 1 || (props.alertTasks.length === 1 && hasRunningSummary.value),
+);
 const hasAlertOverflow = computed(() => props.alertTasks.length > 4);
 const visibleAlertTasks = computed(() =>
   hasAlertOverflow.value ? props.alertTasks.slice(0, 3) : props.alertTasks.slice(0, 4),

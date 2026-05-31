@@ -42,6 +42,17 @@ function completedTask(id: string, title: string): AgentTask {
   };
 }
 
+function runningTask(id: string, title: string): AgentTask {
+  return {
+    id,
+    source: "codex",
+    title,
+    status: "thinking",
+    updatedAt: "2026-05-30T01:01:00.000Z",
+    events: [],
+  };
+}
+
 describe("IslandApp", () => {
   beforeEach(() => {
     setActivePinia(createPinia());
@@ -60,6 +71,16 @@ describe("IslandApp", () => {
   it("uses a card-like island shell when attention alerts are stacked over the running summary", async () => {
     const taskStore = useTaskStore();
     taskStore.tasks = [completedTask("task-a", "A"), completedTask("task-b", "B")];
+
+    const wrapper = mount(IslandApp);
+    await flushPromises();
+
+    expect(wrapper.find(".island-trigger").classes()).toContain("island-trigger--stacked");
+  });
+
+  it("uses a card-like island shell when one alert coexists with running work", async () => {
+    const taskStore = useTaskStore();
+    taskStore.tasks = [completedTask("task-a", "A"), runningTask("task-b", "B")];
 
     const wrapper = mount(IslandApp);
     await flushPromises();

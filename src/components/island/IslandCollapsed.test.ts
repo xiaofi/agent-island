@@ -21,7 +21,7 @@ describe("IslandCollapsed", () => {
     const wrapper = mount(IslandCollapsed, {
       props: {
         alertTasks: [task("task-cmux", "cmux", "completed")],
-        runningCount: 3,
+        runningCount: 0,
         loading: false,
         expanded: false,
       },
@@ -31,12 +31,32 @@ describe("IslandCollapsed", () => {
     expect(wrapper.findAll(".collapsed-island__row")).toHaveLength(1);
     expect(wrapper.text()).toContain("codex · 已完成 · cmux");
     expect(wrapper.text()).toContain("显示全部任务");
-    expect(wrapper.text()).not.toContain("3 个任务进行中");
+    expect(wrapper.text()).not.toContain("暂无任务进行中");
 
     await wrapper.find(".collapsed-island__ack").trigger("click");
 
     expect(wrapper.emitted("acknowledgeCompleted")).toEqual([[["task-cmux"]]]);
     expect(wrapper.emitted("expand")).toBeUndefined();
+  });
+
+  it("shows a running summary when one attention item coexists with running work", async () => {
+    const wrapper = mount(IslandCollapsed, {
+      props: {
+        alertTasks: [task("task-cmux", "cmux", "completed")],
+        runningCount: 1,
+        loading: false,
+        expanded: false,
+      },
+    });
+
+    expect(wrapper.find(".collapsed-island").classes()).toContain("collapsed-island--stacked");
+    const rows = wrapper.findAll(".collapsed-island__row");
+    expect(rows).toHaveLength(2);
+    expect(rows[0].text()).toContain("codex · 已完成 · cmux");
+    expect(rows[1].text()).toContain("1 个任务进行中");
+
+    await rows[1].trigger("click");
+    expect(wrapper.emitted("expand")).toHaveLength(1);
   });
 
   it("renders multiple attention rows above the running summary row", async () => {

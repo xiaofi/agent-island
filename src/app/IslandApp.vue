@@ -32,16 +32,20 @@ const collapsedAlertTasks = computed(() =>
   taskStore.sortedTasks.filter(needsAttention).map((task) => maskTask(task, preferencesStore.privacy)),
 );
 const runningSummaryCount = computed(() => taskStore.tasks.filter(isRunningSummaryTask).length);
+const hasStackedCollapsedRows = computed(
+  () =>
+    collapsedAlertTasks.value.length > 1 ||
+    (collapsedAlertTasks.value.length === 1 && (runningSummaryCount.value > 0 || taskStore.loading)),
+);
 
 const collapsedHeight = computed(() => {
-  const alertRowCount = Math.min(collapsedAlertTasks.value.length, 4);
-  if (alertRowCount <= 1) {
+  const visibleAlertRowCount = Math.min(collapsedAlertTasks.value.length, 4);
+  if (!hasStackedCollapsedRows.value) {
     return 44;
   }
 
-  return Math.max(44, 12 + (alertRowCount + 1) * 30);
+  return Math.max(44, 12 + (visibleAlertRowCount + 1) * 30);
 });
-const hasStackedCollapsedRows = computed(() => collapsedAlertTasks.value.length > 1);
 
 function isRunningSummaryTask(task: AgentTask) {
   return (

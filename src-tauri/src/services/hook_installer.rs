@@ -442,6 +442,9 @@ record = {{
     }},
 }}
 
+if event == "HookEvent" and not any([session_id, transcript_path, cwd, tool_name]):
+    sys.exit(0)
+
 with open(event_path, "a", encoding="utf-8") as handle:
     handle.write(json.dumps(record, ensure_ascii=False, separators=(",", ":")) + "\n")
 ' "$@" >/dev/null 2>&1

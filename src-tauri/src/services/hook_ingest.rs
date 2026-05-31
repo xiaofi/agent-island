@@ -71,7 +71,10 @@ fn tasks_from_events(events: Vec<SpoolEvent>) -> Vec<AgentTask> {
 fn tasks_from_events_with_home(events: Vec<SpoolEvent>, home: Option<&Path>) -> Vec<AgentTask> {
     let mut grouped: BTreeMap<(AgentSource, String), Vec<SpoolEvent>> = BTreeMap::new();
 
-    for event in events {
+    for event in events
+        .into_iter()
+        .filter(|event| !is_unidentified_hook_event(event))
+    {
         grouped
             .entry((event.source.clone(), event.session_key.clone()))
             .or_default()
@@ -162,6 +165,26 @@ fn latest_session_id(events: &[SpoolEvent]) -> Option<String> {
             .filter(|id| !id.is_empty())
             .cloned()
     })
+}
+
+fn is_unidentified_hook_event(event: &SpoolEvent) -> bool {
+    event.event == "HookEvent"
+        && event
+            .session_id
+            .as_ref()
+            .is_none_or(|value| value.trim().is_empty())
+        && event
+            .cwd
+            .as_ref()
+            .is_none_or(|value| value.trim().is_empty())
+        && event
+            .tool_name
+            .as_ref()
+            .is_none_or(|value| value.trim().is_empty())
+        && event
+            .action_summary
+            .as_ref()
+            .is_none_or(|value| value.trim().is_empty())
 }
 
 fn event_type_for_event(event: &str) -> AgentEventType {
@@ -572,6 +595,18 @@ mod tests {
         );
 
         assert_eq!(tasks[0].title, "Codex · agent-island");
+    }
+
+    #[test]
+    fn ignores_unidentified_hook_events() {
+        let mut hook_event = event("HookEvent", "2026-05-30T01:00:00Z");
+        hook_event.session_key = "61e780e9b0bca7ff".to_string();
+        hook_event.cwd = None;
+        hook_event.tool_name = None;
+
+        let tasks = tasks_from_events_with_home(vec![hook_event], Some(&test_home("empty-hook")));
+
+        assert!(tasks.is_empty());
     }
 
     fn test_home(name: &str) -> PathBuf {
