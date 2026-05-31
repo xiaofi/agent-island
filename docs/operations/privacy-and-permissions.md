@@ -8,6 +8,7 @@ Agent Island 的默认隐私模型是本地、最小化、可审计。
 - 不展示完整 prompt 或回复正文。
 - 不读取 transcript 内容作为主路径。
 - 不保存完整工具输入、工具输出、shell command、patch 或文件内容。
+- Hook 接收日志只保存裁剪后的诊断字段并保留 5 天，不保存 prompt、回复正文、完整工具输入/输出、完整 shell command、完整 patch、transcript 内容或 `transcriptPath`。
 - UI 可开启隐私模式，隐藏项目路径和任务标题。
 - Claude Code 和 Codex 的真实 hook 接入默认关闭，必须由用户在设置窗口分别打开。未发现本机安装对应工具时，不显示开关，只显示未发现安装。
 

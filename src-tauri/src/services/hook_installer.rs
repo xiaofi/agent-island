@@ -32,6 +32,8 @@ const CLAUDE_EVENTS: &[&str] = &[
     "PostToolUse",
     "PostToolUseFailure",
     "Notification",
+    "TaskCreated",
+    "TaskCompleted",
     "Stop",
     "StopFailure",
     "SessionEnd",
@@ -337,6 +339,10 @@ fi
 AGENT_ISLAND_APP_DIR="$APP_DIR" "$PYTHON_BIN" -c '
 import datetime, hashlib, json, os, sys
 
+READ_LIMIT = 1048576
+LOG_RETENTION_DAYS = 5
+LOG_PREFIX = "hook-receipts-"
+
 args = sys.argv[1:]
 self_test = "--self-test" in args
 source = None
@@ -366,17 +372,60 @@ if settings.get("hookSource", {{}}).get(settings_key) is not True:
 events_dir = os.path.join(app_dir, "events")
 event_path = os.path.join(events_dir, source + ".jsonl")
 os.makedirs(events_dir, exist_ok=True)
+logs_dir = os.path.join(app_dir, "logs")
 
 if self_test:
     with open(event_path, "a", encoding="utf-8"):
         pass
     sys.exit(0)
 
+timestamp = datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z")
+
+def prune_hook_logs():
+    try:
+        if not os.path.isdir(logs_dir):
+            return
+        cutoff = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=LOG_RETENTION_DAYS)
+        for name in os.listdir(logs_dir):
+            if not name.startswith(LOG_PREFIX) or not name.endswith(".jsonl"):
+                continue
+            path = os.path.join(logs_dir, name)
+            try:
+                file_date = datetime.datetime.strptime(name[len(LOG_PREFIX):-6], "%Y-%m-%d").replace(tzinfo=datetime.timezone.utc)
+                if file_date < cutoff:
+                    os.remove(path)
+            except Exception:
+                try:
+                    modified = datetime.datetime.fromtimestamp(os.path.getmtime(path), datetime.timezone.utc)
+                    if modified < cutoff:
+                        os.remove(path)
+                except Exception:
+                    pass
+    except Exception:
+        pass
+
+def write_hook_log(record):
+    try:
+        os.makedirs(logs_dir, exist_ok=True)
+        prune_hook_logs()
+        path = os.path.join(logs_dir, LOG_PREFIX + timestamp[:10] + ".jsonl")
+        with open(path, "a", encoding="utf-8") as handle:
+            handle.write(json.dumps(record, ensure_ascii=False, separators=(",", ":")) + "\n")
+    except Exception:
+        pass
+
 try:
-    raw = sys.stdin.read(1048576)
+    raw = sys.stdin.read(READ_LIMIT)
+    raw_bytes = len(raw.encode("utf-8", "replace"))
     payload = json.loads(raw) if raw.strip() else {{}}
-except Exception:
+    parse_ok = True
+    parse_error = None
+except Exception as error:
+    raw = ""
+    raw_bytes = 0
     payload = {{}}
+    parse_ok = False
+    parse_error = type(error).__name__
 
 def text(value):
     return value if isinstance(value, str) else None
@@ -422,16 +471,18 @@ tool_input = payload.get("tool_input") or payload.get("toolInput")
 if tool_name is None and isinstance(tool_input, dict):
     tool_name = clean(text(tool_input.get("name")) or text(tool_input.get("tool_name")) or text(tool_input.get("toolName")))
 
-timestamp = datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z")
+notification_type = clean(pick("notification_type", "notificationType"))
 record = {{
     "schemaVersion": 1,
     "source": source,
     "event": event,
     "sessionId": session_id,
+    "transcriptPath": transcript_path,
     "sessionKey": session_key,
     "cwd": cwd,
     "timestamp": timestamp,
     "toolName": tool_name,
+    "notificationType": notification_type,
     "actionSummary": None,
     "permissionMode": clean(pick("permission_mode", "permissionMode")),
     "rawEventFields": {{
@@ -442,11 +493,41 @@ record = {{
     }},
 }}
 
+log_record = {{
+    "schemaVersion": 1,
+    "timestamp": timestamp,
+    "source": source,
+    "event": event,
+    "sessionKey": session_key,
+    "cwd": cwd,
+    "toolName": tool_name,
+    "notificationType": notification_type,
+    "permissionMode": record["permissionMode"],
+    "parseOk": parse_ok,
+    "parseError": parse_error,
+    "rawBytes": raw_bytes,
+    "rawTruncated": raw_bytes >= READ_LIMIT,
+    "hasSessionId": session_id is not None,
+    "hasTranscriptPath": transcript_path is not None,
+    "hasPrompt": record["rawEventFields"]["hasPrompt"],
+    "hasToolInput": record["rawEventFields"]["hasToolInput"],
+    "hasToolResponse": record["rawEventFields"]["hasToolResponse"],
+}}
+
 if event == "HookEvent" and not any([session_id, transcript_path, cwd, tool_name]):
+    log_record["outcome"] = "ignored-empty-hook-event"
+    write_hook_log(log_record)
     sys.exit(0)
 
-with open(event_path, "a", encoding="utf-8") as handle:
-    handle.write(json.dumps(record, ensure_ascii=False, separators=(",", ":")) + "\n")
+try:
+    with open(event_path, "a", encoding="utf-8") as handle:
+        handle.write(json.dumps(record, ensure_ascii=False, separators=(",", ":")) + "\n")
+    log_record["outcome"] = "written"
+except Exception as error:
+    log_record["outcome"] = "event-write-failed"
+    log_record["writeError"] = type(error).__name__
+
+write_hook_log(log_record)
 ' "$@" >/dev/null 2>&1
 STATUS=$?
 
@@ -651,5 +732,26 @@ impl HookInstallError {
             code: code.into(),
             message: message.into(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn claude_events_include_task_completion_hooks() {
+        assert!(CLAUDE_EVENTS.contains(&"TaskCreated"));
+        assert!(CLAUDE_EVENTS.contains(&"TaskCompleted"));
+    }
+
+    #[test]
+    fn helper_script_includes_hook_receipt_logging() {
+        let script = helper_script().unwrap();
+
+        assert!(script.contains("LOG_RETENTION_DAYS = 5"));
+        assert!(script.contains("hook-receipts-"));
+        assert!(script.contains("\"outcome\""));
+        assert!(script.contains("\"transcriptPath\": transcript_path"));
     }
 }

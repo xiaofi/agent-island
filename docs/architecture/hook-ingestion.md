@@ -25,9 +25,22 @@ Vue / Pinia / Island UI
 
 ## 会话标题
 
-- Helper 会保存最小化的 `sessionId`，用于把 hook 事件关联到本机 agent 会话历史。
-- Rust ingest 先用 `sessionId` 查对应来源的会话历史标题：Codex 读取 `~/.codex/session_index.jsonl` 的 `thread_name`；Claude Code 读取本机会话索引或匹配的项目会话文件里的标题字段。
+- Helper 会保存最小化的 `sessionId`；Claude Code 事件还会保存本机 `transcriptPath` 指针，用于稳定定位对应会话文件，但不保存 transcript 内容。
+- Rust ingest 先查对应来源的会话历史标题：Codex 读取 `~/.codex/session_index.jsonl` 的 `thread_name`；Claude Code 优先按 `transcriptPath` 读取会话文件里的 `aiTitle`、标题或 `summary` 记录，失败后再用 `sessionId` 查本机会话索引或匹配的项目会话文件。
 - 找不到历史标题时，任务标题回退为当前工作目录名，保持现有降级逻辑。
+
+## 完成态
+
+- Claude Code 的 `Stop`、`SessionEnd`、`SubagentStop` 和 `TaskCompleted` 都归一化为 `completed`。
+- `TaskCompleted` 需要写入 Claude Code hook 配置；老版本安装缺少该事件时，重新打开或修复 Claude Code 接入后才会收到这类完成事件。
+- `Notification`、`CwdChanged` 这类不改变任务状态的事件不会覆盖之前的完成态；只有 `Notification.permission_prompt` 会归一化为 `waiting-user`。
+
+## Hook 接收日志
+
+- Helper 会额外写入 `~/Library/Application Support/Agent Island/logs/hook-receipts-YYYY-MM-DD.jsonl`，用于排查 hook 是否到达、是否解析成功、是否写入状态事件。
+- 接收日志保留 5 天，helper 每次运行时按文件日期清理过期日志。
+- 日志只保存裁剪后的诊断字段：`source`、`event`、`sessionKey`、`cwd`、`toolName`、`notificationType`、`permissionMode`、解析结果、payload 大小、是否出现 prompt/tool input/tool response 字段，以及写入结果。
+- 日志不保存 prompt 原文、assistant 回复正文、完整工具输入、完整工具输出、完整 shell command、完整 patch、transcript 内容或 `transcriptPath`。
 
 ## Helper 约束
 
@@ -49,7 +62,7 @@ Vue / Pinia / Island UI
 - 完整工具输出。
 - 完整 shell command。
 - 完整 patch 或文件内容。
-- transcript 文件内容。
+- transcript 文件内容；标题解析只允许本机即时读取会话文件里的标题/summary 字段，不落盘保存正文。
 
 ## 安装原则
 

@@ -28,7 +28,7 @@ Agent Island 是一个本地桌面悬浮状态层，用于让开发者快速知�
 
 压缩态中，`waiting-user`、`failed`、`completed`、`paused`、`stale` 这类需要关注的任务逐条展示；`discovering`、`running`、`thinking`、`tool-running` 合并为“N 个任务进行中”。底部/单行右侧入口在收起时显示“显示全部任务”，展开后显示“收起列表”。
 
-任务标题优先来自对应 agent 的本机会话历史标题；如果无法通过 session id 查到标题，则回退为当前工作目录名。
+任务标题优先来自对应 agent 的本机会话历史标题；Codex 通过 session id 查本地索引，Claude Code 可通过本机 transcript 指针读取 `aiTitle`、标题或 `summary` 字段。如果无法查到标题，则回退为当前工作目录名。
 
 ## 状态优先级
 

@@ -21,7 +21,7 @@ Agent Island 只使用 command hook，原因是它可以在本地快速落盘并
 可用关键信息：
 
 - 公共字段：`session_id`、`transcript_path`、`cwd`、`permission_mode`、`hook_event_name`。
-- 关键事件：`SessionStart`、`UserPromptSubmit`、`PreToolUse`、`PermissionRequest`、`PostToolUse`、`PostToolUseFailure`、`Notification`、`Stop`、`StopFailure`、`SessionEnd`、`CwdChanged`。
+- 关键事件：`SessionStart`、`UserPromptSubmit`、`PreToolUse`、`PermissionRequest`、`PostToolUse`、`PostToolUseFailure`、`Notification`、`TaskCreated`、`TaskCompleted`、`Stop`、`StopFailure`、`SessionEnd`、`CwdChanged`。
 - 配置来源可来自 `~/.claude/settings.json`、`.claude/settings.json`、`.claude/settings.local.json`、插件 hooks 等。
 - `exit 0` 且不输出 stdout 表示无决策，正常继续；多数非零错误也是非阻断，但 `exit 2` 在部分事件会阻断动作。
 
@@ -230,6 +230,7 @@ helper 不向 stdout 输出任何内容，不向 stderr 输出任何内容。所
 | `PreToolUse` | `tool-started` | `tool-running` | 记录工具名和动作摘要 |
 | `PermissionRequest` | `waiting-for-user` | `waiting-user` | 需要用户确认 |
 | Claude `Notification.permission_prompt` | `waiting-for-user` | `waiting-user` | Claude 通知层等待用户 |
+| Claude `Notification` | `heartbeat` | 保持当前状态 | 普通通知不覆盖完成态或运行态 |
 | `PostToolUse` | `tool-finished` | `thinking` | 工具完成，回到思考/运行 |
 | Claude `PostToolUseFailure` | `session-failed` 或 `tool-finished` | `failed` 或 `thinking` | 根据错误类型和后续事件判断 |
 | `Stop` | `session-completed` | `completed` | 当前 turn 完成 |
@@ -237,11 +238,14 @@ helper 不向 stdout 输出任何内容，不向 stderr 输出任何内容。所
 | Claude `SessionEnd` | `session-completed` | `completed` | 会话结束 |
 | `SubagentStart` | `session-started` | `running` | 可作为子任务或父任务事件 |
 | `SubagentStop` | `session-completed` | `completed` | 子任务结束 |
-| `CwdChanged` | `heartbeat` | 保持当前状态 | 更新 cwd |
+| Claude `TaskCreated` | `session-started` | `running` | 任务创建或进入执行 |
+| Claude `TaskCompleted` | `session-completed` | `completed` | 任务完成 |
+| `CwdChanged` | `heartbeat` | 保持当前状态 | 更新 cwd，不覆盖完成态或运行态 |
 
 状态机规则：
 
 - `waiting-user` 优先级最高，直到收到新的 `UserPromptSubmit`、`PostToolUse`、`Stop` 或更新事件解除。
+- `Notification` 和 `CwdChanged` 默认不改变状态，避免 `Stop` 后到达的普通通知把 `completed` 覆盖为 `running`。
 - `tool-running` 如果超过 10 分钟没有 `PostToolUse`，降级为 `stale`，但不判定失败。
 - `completed` 进入压缩态完成确认队列，用户确认后从压缩态移除并归档。
 - 只发现进程但没有 hook 事件时，保持 `discovering` 或 `running` 降级任务。
@@ -431,6 +435,8 @@ Hook 相关操作的失败不能只存在于一次性 toast。以下操作失败
 - `PostToolUse`
 - `PostToolUseFailure`
 - `Notification`
+- `TaskCreated`
+- `TaskCompleted`
 - `Stop`
 - `StopFailure`
 - `SessionEnd`
@@ -456,6 +462,18 @@ Hook 相关操作的失败不能只存在于一次性 toast。以下操作失败
 - `install-manifest.json` 保存修改前文件 hash、修改后文件 hash、Agent Island command 列表。
 - 卸载时如果当前文件 hash 和 manifest 里的修改后 hash 不一致，说明用户后来改过文件；此时只做精确删除，不做整文件恢复。
 - 删除失败时不强行改写，诊断页显示手动删除命令。
+
+## 8.1 Hook 接收日志
+
+Helper 除了写入状态 spool，还会写入接收日志：
+
+```text
+~/Library/Application Support/Agent Island/logs/hook-receipts-YYYY-MM-DD.jsonl
+```
+
+日志用途是排查“agent 已经结束但悬浮岛没更新”这类链路问题。每条日志只记录裁剪后的诊断信息：来源、事件名、`sessionKey`、`cwd`、工具名、通知类型、权限模式、payload 是否解析成功、payload 大小、是否出现 prompt/tool input/tool response 字段、以及最终是否写入状态 spool。
+
+日志保留 5 天，helper 每次运行时按 `hook-receipts-YYYY-MM-DD.jsonl` 文件日期清理过期文件。日志不保存 prompt 原文、assistant 回复正文、完整工具输入、完整工具输出、完整 shell command、完整 patch、transcript 内容或 `transcriptPath`。
 
 ## 9. 对用户无感知无影响的工程约束
 

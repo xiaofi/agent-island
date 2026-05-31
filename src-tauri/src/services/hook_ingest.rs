@@ -25,10 +25,12 @@ struct SpoolEvent {
     source: AgentSource,
     event: String,
     session_id: Option<String>,
+    transcript_path: Option<String>,
     session_key: String,
     cwd: Option<String>,
     timestamp: String,
     tool_name: Option<String>,
+    notification_type: Option<String>,
     action_summary: Option<String>,
 }
 
@@ -100,13 +102,21 @@ fn task_from_events(
 ) -> Option<AgentTask> {
     let first = spool_events.first()?;
     let last = spool_events.last()?;
+    let state_event = latest_state_event(&spool_events).unwrap_or(last);
     let task_id = format!("hook-{}-{}", source_slug(&source), session_key);
-    let status = status_for_event(&last.event);
+    let status = status_for_event(state_event).unwrap_or(TaskStatus::Running);
     let cwd = latest_cwd(&spool_events);
     let session_id = latest_session_id(&spool_events);
+    let transcript_path = latest_transcript_path(&spool_events);
     let title = home
         .and_then(|home| {
-            resolve_session_title_in_home(&source, session_id.as_deref(), &session_key, home)
+            resolve_session_title_in_home(
+                &source,
+                session_id.as_deref(),
+                transcript_path.as_deref(),
+                &session_key,
+                home,
+            )
         })
         .unwrap_or_else(|| fallback_task_title(&source, cwd.as_deref()));
     let events = spool_events
@@ -126,9 +136,9 @@ fn task_from_events(
         started_at: Some(first.timestamp.clone()),
         updated_at: last.timestamp.clone(),
         duration_seconds: None,
-        last_action: Some(summary_for_event(last)),
-        waiting_reason: waiting_reason_for_event(&last.event).map(str::to_string),
-        error_summary: error_summary_for_event(&last.event).map(str::to_string),
+        last_action: Some(summary_for_event(state_event)),
+        waiting_reason: waiting_reason_for_event(state_event).map(str::to_string),
+        error_summary: error_summary_for_event(&state_event.event).map(str::to_string),
         window_hint: None,
         events,
     })
@@ -138,16 +148,30 @@ fn agent_event(task_id: &str, index: usize, event: &SpoolEvent) -> AgentEvent {
     AgentEvent {
         id: format!("{task_id}-{index}"),
         task_id: task_id.to_string(),
-        r#type: event_type_for_event(&event.event),
+        r#type: event_type_for_event(event),
         timestamp: event.timestamp.clone(),
         summary: summary_for_event(event),
-        metadata: event.tool_name.as_ref().map(|tool_name| {
-            serde_json::json!({
-                "toolName": tool_name,
-                "hookEvent": event.event,
-            })
-        }),
+        metadata: event_metadata(event),
     }
+}
+
+fn event_metadata(event: &SpoolEvent) -> Option<serde_json::Value> {
+    if event.tool_name.is_none() && event.notification_type.is_none() {
+        return None;
+    }
+
+    let mut metadata = serde_json::Map::new();
+    metadata.insert("hookEvent".to_string(), serde_json::json!(event.event));
+    if let Some(tool_name) = event.tool_name.as_ref() {
+        metadata.insert("toolName".to_string(), serde_json::json!(tool_name));
+    }
+    if let Some(notification_type) = event.notification_type.as_ref() {
+        metadata.insert(
+            "notificationType".to_string(),
+            serde_json::json!(notification_type),
+        );
+    }
+    Some(serde_json::Value::Object(metadata))
 }
 
 fn latest_cwd(events: &[SpoolEvent]) -> Option<String> {
@@ -167,10 +191,24 @@ fn latest_session_id(events: &[SpoolEvent]) -> Option<String> {
     })
 }
 
+fn latest_transcript_path(events: &[SpoolEvent]) -> Option<String> {
+    events.iter().rev().find_map(|event| {
+        event
+            .transcript_path
+            .as_ref()
+            .filter(|path| !path.is_empty())
+            .cloned()
+    })
+}
+
 fn is_unidentified_hook_event(event: &SpoolEvent) -> bool {
     event.event == "HookEvent"
         && event
             .session_id
+            .as_ref()
+            .is_none_or(|value| value.trim().is_empty())
+        && event
+            .transcript_path
             .as_ref()
             .is_none_or(|value| value.trim().is_empty())
         && event
@@ -187,30 +225,50 @@ fn is_unidentified_hook_event(event: &SpoolEvent) -> bool {
             .is_none_or(|value| value.trim().is_empty())
 }
 
-fn event_type_for_event(event: &str) -> AgentEventType {
-    match event {
-        "SessionStart" | "SubagentStart" => AgentEventType::SessionStarted,
+fn event_type_for_event(event: &SpoolEvent) -> AgentEventType {
+    match event.event.as_str() {
+        "SessionStart" | "SubagentStart" | "TaskCreated" => AgentEventType::SessionStarted,
         "UserPromptSubmit" => AgentEventType::UserMessage,
         "PreToolUse" => AgentEventType::ToolStarted,
-        "PostToolUse" | "SubagentStop" => AgentEventType::ToolFinished,
+        "PostToolUse" => AgentEventType::ToolFinished,
         "PermissionRequest" => AgentEventType::WaitingForUser,
-        "Stop" | "SessionEnd" => AgentEventType::SessionCompleted,
+        "Notification" if is_permission_notification(event) => AgentEventType::WaitingForUser,
+        "Stop" | "SessionEnd" | "SubagentStop" | "TaskCompleted" => {
+            AgentEventType::SessionCompleted
+        }
         "PostToolUseFailure" | "StopFailure" => AgentEventType::SessionFailed,
         _ => AgentEventType::Heartbeat,
     }
 }
 
-fn status_for_event(event: &str) -> TaskStatus {
-    match event {
-        "SessionStart" | "SubagentStart" => TaskStatus::Running,
+fn latest_state_event(events: &[SpoolEvent]) -> Option<&SpoolEvent> {
+    events
+        .iter()
+        .rev()
+        .find(|event| status_for_event(event).is_some())
+}
+
+fn status_for_event(event: &SpoolEvent) -> Option<TaskStatus> {
+    match event.event.as_str() {
+        "SessionStart" | "SubagentStart" | "TaskCreated" => TaskStatus::Running,
         "UserPromptSubmit" => TaskStatus::Thinking,
         "PreToolUse" => TaskStatus::ToolRunning,
         "PermissionRequest" => TaskStatus::WaitingUser,
-        "PostToolUse" | "SubagentStop" => TaskStatus::Thinking,
-        "Stop" | "SessionEnd" => TaskStatus::Completed,
+        "Notification" if is_permission_notification(event) => TaskStatus::WaitingUser,
+        "Notification" | "CwdChanged" => return None,
+        "PostToolUse" => TaskStatus::Thinking,
+        "Stop" | "SessionEnd" | "SubagentStop" | "TaskCompleted" => TaskStatus::Completed,
         "PostToolUseFailure" | "StopFailure" => TaskStatus::Failed,
         _ => TaskStatus::Running,
     }
+    .into()
+}
+
+fn is_permission_notification(event: &SpoolEvent) -> bool {
+    event
+        .notification_type
+        .as_ref()
+        .is_some_and(|value| value.contains("permission"))
 }
 
 fn summary_for_event(event: &SpoolEvent) -> String {
@@ -228,19 +286,26 @@ fn summary_for_event(event: &SpoolEvent) -> String {
         "UserPromptSubmit" => "收到新的用户输入".to_string(),
         "PreToolUse" => format!("正在运行 {tool}"),
         "PermissionRequest" => "等待用户确认".to_string(),
+        "Notification" if is_permission_notification(event) => "等待用户确认".to_string(),
+        "Notification" => "收到通知".to_string(),
         "PostToolUse" => format!("{tool} 完成"),
         "PostToolUseFailure" => format!("{tool} 执行失败"),
         "Stop" | "SessionEnd" => "会话本轮完成".to_string(),
         "SubagentStart" => "子任务启动".to_string(),
         "SubagentStop" => "子任务完成".to_string(),
+        "TaskCreated" => "任务已创建".to_string(),
+        "TaskCompleted" => "任务已完成".to_string(),
         "CwdChanged" => "工作目录已更新".to_string(),
         _ => "收到状态事件".to_string(),
     }
 }
 
-fn waiting_reason_for_event(event: &str) -> Option<&'static str> {
-    match event {
+fn waiting_reason_for_event(event: &SpoolEvent) -> Option<&'static str> {
+    match event.event.as_str() {
         "PermissionRequest" => Some("Codex / Claude Code 正在等待用户确认。"),
+        "Notification" if is_permission_notification(event) => {
+            Some("Codex / Claude Code 正在等待用户确认。")
+        }
         _ => None,
     }
 }
@@ -264,19 +329,13 @@ fn fallback_task_title(source: &AgentSource, cwd: Option<&str>) -> String {
 fn resolve_session_title_in_home(
     source: &AgentSource,
     session_id: Option<&str>,
+    transcript_path: Option<&str>,
     session_key: &str,
     home: &Path,
 ) -> Option<String> {
     match source {
         AgentSource::Codex => lookup_codex_session_title(home, session_id, session_key),
-        AgentSource::ClaudeCode => {
-            let session_id = session_id?.trim();
-            if session_id.is_empty() {
-                return None;
-            }
-
-            lookup_claude_session_title(home, session_id)
-        }
+        AgentSource::ClaudeCode => lookup_claude_session_title(home, session_id, transcript_path),
         AgentSource::Manual => None,
     }
 }
@@ -312,12 +371,30 @@ fn lookup_codex_session_title(
     None
 }
 
-fn lookup_claude_session_title(home: &Path, session_id: &str) -> Option<String> {
+fn lookup_claude_session_title(
+    home: &Path,
+    session_id: Option<&str>,
+    transcript_path: Option<&str>,
+) -> Option<String> {
+    let session_id = session_id.map(str::trim).filter(|id| !id.is_empty());
+
+    if let Some(path) = transcript_path
+        .map(str::trim)
+        .filter(|path| !path.is_empty())
+        .map(PathBuf::from)
+    {
+        if let Some(title) = read_title_from_jsonl(&path, session_id, true) {
+            return Some(title);
+        }
+    }
+
+    let session_id = session_id?;
+
     for path in [
         home.join(".claude/session_index.jsonl"),
         home.join(".claude/history.jsonl"),
     ] {
-        if let Some(title) = read_title_from_jsonl(&path, session_id, false) {
+        if let Some(title) = read_title_from_jsonl(&path, Some(session_id), false) {
             return Some(title);
         }
     }
@@ -327,7 +404,7 @@ fn lookup_claude_session_title(home: &Path, session_id: &str) -> Option<String> 
     collect_json_session_files(&projects_dir, session_id, 0, &mut candidates);
 
     for path in candidates {
-        if let Some(title) = read_title_from_jsonl(&path, session_id, true) {
+        if let Some(title) = read_title_from_jsonl(&path, Some(session_id), true) {
             return Some(title);
         }
     }
@@ -337,25 +414,26 @@ fn lookup_claude_session_title(home: &Path, session_id: &str) -> Option<String> 
 
 fn read_title_from_jsonl(
     path: &Path,
-    session_id: &str,
+    session_id: Option<&str>,
     allow_session_file: bool,
 ) -> Option<String> {
     let file = fs::File::open(path).ok()?;
     let reader = BufReader::new(file);
+    let mut title = None;
 
     for line in reader.lines().map_while(Result::ok) {
         let Ok(value) = serde_json::from_str::<Value>(&line) else {
             continue;
         };
 
-        if allow_session_file || session_matches(&value, session_id) {
-            if let Some(title) = title_from_value(&value) {
-                return Some(title);
+        if allow_session_file || session_id.is_some_and(|id| session_matches(&value, id)) {
+            if let Some(value_title) = title_from_value(&value) {
+                title = Some(value_title);
             }
         }
     }
 
-    None
+    title
 }
 
 fn collect_json_session_files(
@@ -413,11 +491,12 @@ fn title_from_value(value: &Value) -> Option<String> {
         &[
             "thread_name",
             "threadName",
+            "ai_title",
+            "aiTitle",
             "title",
             "task_subject",
             "taskSubject",
             "summary",
-            "name",
         ],
         0,
     )
@@ -501,10 +580,12 @@ mod tests {
             source: AgentSource::Codex,
             event: name.to_string(),
             session_id: None,
+            transcript_path: None,
             session_key: "abc123".to_string(),
             cwd: Some("/Users/spf/project/agent-island".to_string()),
             timestamp: timestamp.to_string(),
             tool_name: Some("Bash".to_string()),
+            notification_type: None,
             action_summary: None,
         }
     }
@@ -519,6 +600,55 @@ mod tests {
         assert_eq!(tasks.len(), 1);
         assert_eq!(tasks[0].status, TaskStatus::ToolRunning);
         assert_eq!(tasks[0].last_action.as_deref(), Some("正在运行 Bash"));
+    }
+
+    #[test]
+    fn maps_claude_completion_events_to_completed_status() {
+        for event_name in ["Stop", "SessionEnd", "SubagentStop", "TaskCompleted"] {
+            let mut hook_event = event(event_name, "2026-05-30T01:00:00Z");
+            hook_event.source = AgentSource::ClaudeCode;
+
+            let tasks = tasks_from_events(vec![hook_event]);
+
+            assert_eq!(tasks.len(), 1, "{event_name}");
+            assert_eq!(tasks[0].status, TaskStatus::Completed, "{event_name}");
+            assert!(
+                tasks[0]
+                    .events
+                    .iter()
+                    .any(|event| event.r#type == AgentEventType::SessionCompleted),
+                "{event_name}"
+            );
+        }
+    }
+
+    #[test]
+    fn keeps_completed_status_after_later_neutral_notification() {
+        let mut stopped = event("Stop", "2026-05-30T01:00:00Z");
+        stopped.source = AgentSource::ClaudeCode;
+        let mut notification = event("Notification", "2026-05-30T01:01:00Z");
+        notification.source = AgentSource::ClaudeCode;
+        notification.tool_name = None;
+
+        let tasks = tasks_from_events(vec![stopped, notification]);
+
+        assert_eq!(tasks.len(), 1);
+        assert_eq!(tasks[0].status, TaskStatus::Completed);
+        assert_eq!(tasks[0].last_action.as_deref(), Some("会话本轮完成"));
+    }
+
+    #[test]
+    fn maps_permission_notification_to_waiting_user() {
+        let mut notification = event("Notification", "2026-05-30T01:00:00Z");
+        notification.source = AgentSource::ClaudeCode;
+        notification.tool_name = None;
+        notification.notification_type = Some("permission_prompt".to_string());
+
+        let tasks = tasks_from_events(vec![notification]);
+
+        assert_eq!(tasks.len(), 1);
+        assert_eq!(tasks[0].status, TaskStatus::WaitingUser);
+        assert_eq!(tasks[0].events[0].r#type, AgentEventType::WaitingForUser);
     }
 
     #[test]
@@ -585,6 +715,72 @@ mod tests {
         let tasks = tasks_from_events_with_home(vec![hook_event], Some(&home));
 
         assert_eq!(tasks[0].title, "检查 API server 测试失败");
+    }
+
+    #[test]
+    fn uses_claude_transcript_path_title_without_session_id() {
+        let home = test_home("claude-transcript-title");
+        let transcript_path =
+            home.join(".claude/projects/Users-spf-project-agent-island/session-file.jsonl");
+        fs::create_dir_all(transcript_path.parent().unwrap()).unwrap();
+        fs::write(
+            &transcript_path,
+            r#"{"type":"summary","summary":"修复 Claude 任务标题展示"}"#,
+        )
+        .unwrap();
+
+        let mut hook_event = event("UserPromptSubmit", "2026-05-30T01:00:00Z");
+        hook_event.source = AgentSource::ClaudeCode;
+        hook_event.session_id = None;
+        hook_event.transcript_path = Some(transcript_path.to_string_lossy().to_string());
+        let tasks = tasks_from_events_with_home(vec![hook_event], Some(&home));
+
+        assert_eq!(tasks[0].title, "修复 Claude 任务标题展示");
+    }
+
+    #[test]
+    fn uses_claude_ai_title_from_transcript_path() {
+        let home = test_home("claude-ai-title");
+        let transcript_path =
+            home.join(".claude/projects/Users-spf-project-agent-island/session-file.jsonl");
+        fs::create_dir_all(transcript_path.parent().unwrap()).unwrap();
+        fs::write(
+            &transcript_path,
+            r#"{"type":"ai-title","aiTitle":"调研 Claude Code 任务标题"}"#,
+        )
+        .unwrap();
+
+        let mut hook_event = event("UserPromptSubmit", "2026-05-30T01:00:00Z");
+        hook_event.source = AgentSource::ClaudeCode;
+        hook_event.session_id = Some("claude-session".to_string());
+        hook_event.transcript_path = Some(transcript_path.to_string_lossy().to_string());
+        let tasks = tasks_from_events_with_home(vec![hook_event], Some(&home));
+
+        assert_eq!(tasks[0].title, "调研 Claude Code 任务标题");
+    }
+
+    #[test]
+    fn uses_latest_claude_ai_title_from_transcript_path() {
+        let home = test_home("claude-latest-ai-title");
+        let transcript_path =
+            home.join(".claude/projects/Users-spf-project-agent-island/session-file.jsonl");
+        fs::create_dir_all(transcript_path.parent().unwrap()).unwrap();
+        fs::write(
+            &transcript_path,
+            [
+                r#"{"type":"ai-title","aiTitle":"早期标题"}"#,
+                r#"{"type":"ai-title","aiTitle":"最终标题"}"#,
+            ]
+            .join("\n"),
+        )
+        .unwrap();
+
+        let mut hook_event = event("UserPromptSubmit", "2026-05-30T01:00:00Z");
+        hook_event.source = AgentSource::ClaudeCode;
+        hook_event.transcript_path = Some(transcript_path.to_string_lossy().to_string());
+        let tasks = tasks_from_events_with_home(vec![hook_event], Some(&home));
+
+        assert_eq!(tasks[0].title, "最终标题");
     }
 
     #[test]
