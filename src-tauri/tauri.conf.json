@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "Agent Island",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "identifier": "com.spf.agentisland",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -26,8 +26,8 @@
         "visibleOnAllWorkspaces": true,
         "skipTaskbar": true,
         "shadow": false,
-        "visible": true,
-        "center": true
+        "visible": false,
+        "center": false
       }
     ],
     "security": {

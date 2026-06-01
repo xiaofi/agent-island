@@ -126,6 +126,10 @@ button {
   overflow: visible;
 }
 
+.app-shell--expanded.app-shell--expand-up .island-window {
+  flex-direction: column-reverse;
+}
+
 .island-trigger {
   height: var(--collapsed-height, 44px);
   flex: none;
@@ -337,6 +341,11 @@ button {
 .island-drop-leave-to {
   opacity: 0;
   transform: translateY(-10px) scaleY(0.97);
+}
+
+.app-shell--expand-up .island-drop-enter-from,
+.app-shell--expand-up .island-drop-leave-to {
+  transform: translateY(10px) scaleY(0.97);
 }
 
 .island-drop-enter-to,

@@ -155,10 +155,18 @@ export async function setMousePassthrough(enabled: boolean): Promise<void> {
   }
 }
 
-export async function setWindowMode(expanded: boolean, collapsedHeight = 44): Promise<void> {
+export type IslandPanelDirection = "down" | "up";
+
+export async function setWindowMode(
+  expanded: boolean,
+  collapsedHeight = 44,
+  expansionDirection?: IslandPanelDirection,
+): Promise<IslandPanelDirection> {
   if (isTauri()) {
-    return invoke("set_window_mode", { expanded, collapsedHeight });
+    return invoke<IslandPanelDirection>("set_window_mode", { expanded, collapsedHeight, expansionDirection });
   }
+
+  return "down";
 }
 
 export async function startWindowDrag(): Promise<void> {

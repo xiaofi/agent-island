@@ -5,7 +5,7 @@ import IslandCollapsed from "@/components/island/IslandCollapsed.vue";
 import IslandExpanded from "@/components/island/IslandExpanded.vue";
 import TaskDetail from "@/components/island/TaskDetail.vue";
 import IconButton from "@/components/primitives/IconButton.vue";
-import { openAppWindow, setWindowMode, startWindowDrag } from "@/bridge/tauriApi";
+import { openAppWindow, setWindowMode, startWindowDrag, type IslandPanelDirection } from "@/bridge/tauriApi";
 import { maskTask } from "@/domain/privacy";
 import { needsAttention } from "@/domain/taskPriority";
 import type { AgentTask } from "@/domain/taskTypes";
@@ -20,6 +20,7 @@ const mode = ref<IslandMode>("collapsed");
 const isPanelOpen = ref(false);
 const isPanelClosing = ref(false);
 const isLayoutExpanded = ref(false);
+const panelDirection = ref<IslandPanelDirection>("down");
 const selectedTaskId = ref<string>();
 let transitionToken = 0;
 
@@ -66,10 +67,11 @@ async function showList() {
 
   const token = ++transitionToken;
   isPanelClosing.value = false;
-  isLayoutExpanded.value = true;
-  await applyWindowMode(true);
+  const nextPanelDirection = await applyWindowMode(true);
 
   if (token === transitionToken) {
+    panelDirection.value = nextPanelDirection;
+    isLayoutExpanded.value = true;
     isPanelOpen.value = true;
   }
 }
@@ -119,6 +121,7 @@ async function finishCollapse(token: number) {
   selectedTaskId.value = undefined;
   mode.value = "collapsed";
   isLayoutExpanded.value = false;
+  panelDirection.value = "down";
   isPanelClosing.value = false;
 }
 
@@ -132,17 +135,24 @@ watch(
   { immediate: true },
 );
 
-async function applyWindowMode(expanded: boolean) {
+async function applyWindowMode(expanded: boolean): Promise<IslandPanelDirection> {
   try {
-    await setWindowMode(expanded, collapsedHeight.value);
+    return await setWindowMode(expanded, collapsedHeight.value, panelDirection.value);
   } catch (error) {
     console.warn("[agent-island] failed to update island window mode", error);
+    return "down";
   }
 }
 </script>
 
 <template>
-  <main class="app-shell" :class="{ 'app-shell--expanded': isLayoutExpanded }">
+  <main
+    class="app-shell"
+    :class="{
+      'app-shell--expanded': isLayoutExpanded,
+      'app-shell--expand-up': isLayoutExpanded && panelDirection === 'up',
+    }"
+  >
     <section class="island-window" :style="{ '--collapsed-height': `${collapsedHeight}px` }">
       <div class="island-trigger" :class="{ 'island-trigger--stacked': hasStackedCollapsedRows }">
         <IslandCollapsed

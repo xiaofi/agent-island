@@ -4,6 +4,7 @@ import { flushPromises, mount } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import IslandApp from "@/app/IslandApp.vue";
+import { setWindowMode } from "@/bridge/tauriApi";
 import type { AgentTask } from "@/domain/taskTypes";
 import { useTaskStore } from "@/stores/taskStore";
 
@@ -67,6 +68,7 @@ function pausedTask(id: string, title: string): AgentTask {
 describe("IslandApp", () => {
   beforeEach(() => {
     setActivePinia(createPinia());
+    vi.mocked(setWindowMode).mockResolvedValue("down");
   });
 
   it("keeps the compact island shell when there is only one attention alert", async () => {
@@ -109,5 +111,19 @@ describe("IslandApp", () => {
     expect(wrapper.find(".island-trigger").classes()).not.toContain("island-trigger--stacked");
     expect(wrapper.text()).toContain("1 个任务进行中");
     expect(wrapper.text()).not.toContain("已暂停");
+  });
+
+  it("lays out the expanded panel above the trigger when the native window opens upward", async () => {
+    vi.mocked(setWindowMode).mockResolvedValueOnce("down").mockResolvedValueOnce("up");
+    const taskStore = useTaskStore();
+    taskStore.tasks = [runningTask("task-a", "A")];
+
+    const wrapper = mount(IslandApp);
+    await flushPromises();
+    await wrapper.find(".collapsed-island__row--summary").trigger("click");
+    await flushPromises();
+
+    expect(wrapper.find(".app-shell").classes()).toContain("app-shell--expanded");
+    expect(wrapper.find(".app-shell").classes()).toContain("app-shell--expand-up");
   });
 });
