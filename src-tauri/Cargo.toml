@@ -1,6 +1,6 @@
 [package]
 name = "agent-island"
-version = "0.1.1"
+version = "0.1.2"
 description = "A lightweight floating desktop panel for local coding agents"
 authors = ["Agent Island"]
 edition = "2021"
