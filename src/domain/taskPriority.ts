@@ -5,14 +5,14 @@ export const statusWeight: Record<TaskStatus, number> = {
   failed: 95,
   completed: 90,
   stale: 85,
-  paused: 80,
   "tool-running": 70,
   thinking: 60,
   running: 50,
+  paused: 10,
   discovering: 1,
 };
 
-const attentionStatuses = new Set<TaskStatus>(["waiting-user", "completed", "failed", "stale", "paused"]);
+const attentionStatuses = new Set<TaskStatus>(["waiting-user", "completed", "failed", "stale"]);
 
 const activeStatuses = new Set<TaskStatus>([
   "discovering",

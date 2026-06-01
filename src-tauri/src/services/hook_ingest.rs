@@ -34,6 +34,13 @@ struct SpoolEvent {
     action_summary: Option<String>,
 }
 
+#[derive(Debug, Clone)]
+struct TaskStateOverride {
+    status: TaskStatus,
+    timestamp: String,
+    summary: String,
+}
+
 pub fn load_tasks(settings: &AppSettings) -> Vec<AgentTask> {
     let mut events = Vec::new();
 
@@ -108,6 +115,25 @@ fn task_from_events(
     let cwd = latest_cwd(&spool_events);
     let session_id = latest_session_id(&spool_events);
     let transcript_path = latest_transcript_path(&spool_events);
+    let codex_session_state = if source == AgentSource::Codex {
+        transcript_path
+            .as_deref()
+            .and_then(codex_session_state_from_transcript)
+    } else {
+        None
+    };
+    let mut status = status;
+    let mut updated_at = last.timestamp.clone();
+    let mut last_action = summary_for_event(state_event);
+    if let Some(state) = codex_session_state {
+        if state.timestamp.as_str() > state_event.timestamp.as_str() {
+            status = state.status;
+            last_action = state.summary;
+            if state.timestamp.as_str() > updated_at.as_str() {
+                updated_at = state.timestamp;
+            }
+        }
+    }
     let title = home
         .and_then(|home| {
             resolve_session_title_in_home(
@@ -134,9 +160,9 @@ fn task_from_events(
         cwd,
         status,
         started_at: Some(first.timestamp.clone()),
-        updated_at: last.timestamp.clone(),
+        updated_at,
         duration_seconds: None,
-        last_action: Some(summary_for_event(state_event)),
+        last_action: Some(last_action),
         waiting_reason: waiting_reason_for_event(state_event).map(str::to_string),
         error_summary: error_summary_for_event(&state_event.event).map(str::to_string),
         window_hint: None,
@@ -316,6 +342,46 @@ fn error_summary_for_event(event: &str) -> Option<&'static str> {
         "StopFailure" => Some("会话结束失败"),
         _ => None,
     }
+}
+
+fn codex_session_state_from_transcript(transcript_path: &str) -> Option<TaskStateOverride> {
+    let path = PathBuf::from(transcript_path.trim());
+    let file = fs::File::open(path).ok()?;
+    let reader = BufReader::new(file);
+    let mut state = None;
+
+    for line in reader.lines().map_while(Result::ok) {
+        if !line.contains(r#""type":"event_msg""#) || !line.contains("turn_aborted") {
+            continue;
+        }
+
+        let Ok(value) = serde_json::from_str::<Value>(&line) else {
+            continue;
+        };
+        let is_turn_aborted = value
+            .get("payload")
+            .and_then(|payload| find_string_by_keys(payload, &["type"], 0))
+            .is_some_and(|event_type| event_type == "turn_aborted");
+        if !is_turn_aborted {
+            continue;
+        }
+
+        let Some(timestamp) = find_string_by_keys(&value, &["timestamp"], 0) else {
+            continue;
+        };
+        let summary = match find_string_by_keys(&value, &["reason"], 0) {
+            Some("interrupted") => "用户手动暂停".to_string(),
+            Some(reason) if !reason.trim().is_empty() => format!("任务已暂停：{reason}"),
+            _ => "任务已暂停".to_string(),
+        };
+        state = Some(TaskStateOverride {
+            status: TaskStatus::Paused,
+            timestamp: timestamp.to_string(),
+            summary,
+        });
+    }
+
+    state
 }
 
 fn fallback_task_title(source: &AgentSource, cwd: Option<&str>) -> String {
@@ -649,6 +715,53 @@ mod tests {
         assert_eq!(tasks.len(), 1);
         assert_eq!(tasks[0].status, TaskStatus::WaitingUser);
         assert_eq!(tasks[0].events[0].r#type, AgentEventType::WaitingForUser);
+    }
+
+    #[test]
+    fn maps_codex_turn_aborted_transcript_to_paused_status() {
+        let home = test_home("codex-paused");
+        let transcript_path = home.join(".codex/sessions/paused.jsonl");
+        fs::create_dir_all(transcript_path.parent().unwrap()).unwrap();
+        fs::write(
+            &transcript_path,
+            [
+                r#"{"timestamp":"2026-05-30T01:00:00Z","type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"ignored"}]}}"#,
+                r#"{"timestamp":"2026-05-30T01:00:05Z","type":"event_msg","payload":{"type":"turn_aborted","reason":"interrupted"}}"#,
+            ]
+            .join("\n"),
+        )
+        .unwrap();
+        let mut hook_event = event("UserPromptSubmit", "2026-05-30T01:00:00Z");
+        hook_event.transcript_path = Some(transcript_path.to_string_lossy().to_string());
+
+        let tasks = tasks_from_events_with_home(vec![hook_event], Some(&home));
+
+        assert_eq!(tasks.len(), 1);
+        assert_eq!(tasks[0].status, TaskStatus::Paused);
+        assert_eq!(tasks[0].updated_at, "2026-05-30T01:00:05Z");
+        assert_eq!(tasks[0].last_action.as_deref(), Some("用户手动暂停"));
+    }
+
+    #[test]
+    fn newer_codex_hook_event_clears_older_paused_transcript_state() {
+        let home = test_home("codex-paused-cleared");
+        let transcript_path = home.join(".codex/sessions/paused-cleared.jsonl");
+        fs::create_dir_all(transcript_path.parent().unwrap()).unwrap();
+        fs::write(
+            &transcript_path,
+            r#"{"timestamp":"2026-05-30T01:00:05Z","type":"event_msg","payload":{"type":"turn_aborted","reason":"interrupted"}}"#,
+        )
+        .unwrap();
+        let mut paused = event("UserPromptSubmit", "2026-05-30T01:00:00Z");
+        paused.transcript_path = Some(transcript_path.to_string_lossy().to_string());
+        let mut resumed = event("UserPromptSubmit", "2026-05-30T01:00:10Z");
+        resumed.transcript_path = Some(transcript_path.to_string_lossy().to_string());
+
+        let tasks = tasks_from_events_with_home(vec![paused, resumed], Some(&home));
+
+        assert_eq!(tasks.len(), 1);
+        assert_eq!(tasks[0].status, TaskStatus::Thinking);
+        assert_eq!(tasks[0].updated_at, "2026-05-30T01:00:10Z");
     }
 
     #[test]

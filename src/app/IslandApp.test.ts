@@ -53,6 +53,17 @@ function runningTask(id: string, title: string): AgentTask {
   };
 }
 
+function pausedTask(id: string, title: string): AgentTask {
+  return {
+    id,
+    source: "codex",
+    title,
+    status: "paused",
+    updatedAt: "2026-05-30T01:02:00.000Z",
+    events: [],
+  };
+}
+
 describe("IslandApp", () => {
   beforeEach(() => {
     setActivePinia(createPinia());
@@ -86,5 +97,17 @@ describe("IslandApp", () => {
     await flushPromises();
 
     expect(wrapper.find(".island-trigger").classes()).toContain("island-trigger--stacked");
+  });
+
+  it("does not promote user-paused tasks as collapsed alerts", async () => {
+    const taskStore = useTaskStore();
+    taskStore.tasks = [pausedTask("task-a", "A"), runningTask("task-b", "B")];
+
+    const wrapper = mount(IslandApp);
+    await flushPromises();
+
+    expect(wrapper.find(".island-trigger").classes()).not.toContain("island-trigger--stacked");
+    expect(wrapper.text()).toContain("1 个任务进行中");
+    expect(wrapper.text()).not.toContain("已暂停");
   });
 });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { pickPrimaryTask, sortTasksByPriority } from "@/domain/taskPriority";
+import { needsAttention, pickPrimaryTask, sortTasksByPriority } from "@/domain/taskPriority";
 import type { AgentTask } from "@/domain/taskTypes";
 
 const baseTask: AgentTask = {
@@ -32,6 +32,16 @@ describe("taskPriority", () => {
 
     expect(sortTasksByPriority(tasks).map((task) => task.id)).toEqual(["failed", "completed", "tool"]);
     expect(pickPrimaryTask(tasks)?.id).toBe("failed");
+  });
+
+  it("keeps user-paused tasks out of attention priority", () => {
+    const tasks: AgentTask[] = [
+      { ...baseTask, id: "paused", status: "paused", updatedAt: "2026-05-29T12:00:00.000Z" },
+      { ...baseTask, id: "running", status: "running", updatedAt: "2026-05-29T10:00:00.000Z" },
+    ];
+
+    expect(needsAttention(tasks[0])).toBe(false);
+    expect(sortTasksByPriority(tasks).map((task) => task.id)).toEqual(["running", "paused"]);
   });
 
   it("uses updatedAt when statuses have the same priority", () => {

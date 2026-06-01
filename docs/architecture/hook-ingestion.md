@@ -35,6 +35,12 @@ Vue / Pinia / Island UI
 - `TaskCompleted` 需要写入 Claude Code hook 配置；老版本安装缺少该事件时，重新打开或修复 Claude Code 接入后才会收到这类完成事件。
 - `Notification`、`CwdChanged` 这类不改变任务状态的事件不会覆盖之前的完成态；只有 `Notification.permission_prompt` 会归一化为 `waiting-user`。
 
+## 暂停态
+
+- Codex 桌面端手动暂停不会通过 hook helper 写入 `events/codex.jsonl`；对应信号在本机会话 JSONL 里表现为 `event_msg.payload.type = "turn_aborted"`，`reason = "interrupted"`。
+- Rust ingest 只在已有 Codex hook 事件提供 `transcriptPath` 时，按行扫描本机会话 JSONL 的事件元数据行，提取 `timestamp` 和 `reason`，不保存 prompt、回复或 transcript 正文。
+- 如果 `turn_aborted` 比最新 hook 状态更新，任务归一化为 `paused`；`paused` 是用户主动操作后的次要状态，不触发压缩态关注提示。后续新的 `UserPromptSubmit`、`PreToolUse`、`PostToolUse` 等 hook 状态会恢复正常运行态。
+
 ## Hook 接收日志
 
 - Helper 会额外写入 `~/Library/Application Support/Agent Island/logs/hook-receipts-YYYY-MM-DD.jsonl`，用于排查 hook 是否到达、是否解析成功、是否写入状态事件。
