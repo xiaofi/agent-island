@@ -4,7 +4,7 @@ import { flushPromises, mount } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import IslandApp from "@/app/IslandApp.vue";
-import { setWindowMode } from "@/bridge/tauriApi";
+import { setWindowMode, subscribeWindowFocusChanged } from "@/bridge/tauriApi";
 import type { AgentTask } from "@/domain/taskTypes";
 import { useTaskStore } from "@/stores/taskStore";
 
@@ -29,6 +29,7 @@ vi.mock("@/bridge/tauriApi", () => ({
   runDiscovery: vi.fn(async () => []),
   setWindowMode: vi.fn(),
   startWindowDrag: vi.fn(),
+  subscribeWindowFocusChanged: vi.fn(async () => () => undefined),
   subscribeAgentEvents: vi.fn(async () => () => undefined),
 }));
 
@@ -69,6 +70,7 @@ describe("IslandApp", () => {
   beforeEach(() => {
     setActivePinia(createPinia());
     vi.mocked(setWindowMode).mockResolvedValue("down");
+    vi.mocked(subscribeWindowFocusChanged).mockResolvedValue(() => undefined);
   });
 
   it("keeps the compact island shell when there is only one attention alert", async () => {
@@ -191,6 +193,80 @@ describe("IslandApp", () => {
       expect(vi.mocked(setWindowMode).mock.calls[0]?.[0]).toBe(false);
       expect(wrapper.find(".app-shell").classes()).not.toContain("app-shell--expanded");
       expect(wrapper.find("button.collapsed-island__meta").attributes("disabled")).toBeUndefined();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("collapses the expanded list when the island window loses focus", async () => {
+    vi.useFakeTimers();
+
+    try {
+      let focusChanged: ((focused: boolean) => void) | undefined;
+      vi.mocked(subscribeWindowFocusChanged).mockImplementation(async (handler) => {
+        focusChanged = handler;
+        return () => undefined;
+      });
+
+      const taskStore = useTaskStore();
+      taskStore.tasks = [runningTask("task-a", "A")];
+
+      const wrapper = mount(IslandApp);
+      await flushPromises();
+
+      await wrapper.find("button.collapsed-island__meta").trigger("click");
+      await flushPromises();
+      await vi.advanceTimersByTimeAsync(260);
+      await flushPromises();
+
+      expect(wrapper.find(".app-shell").classes()).toContain("app-shell--expanded");
+      vi.mocked(setWindowMode).mockClear();
+
+      focusChanged?.(false);
+      await vi.advanceTimersByTimeAsync(900);
+      await flushPromises();
+
+      expect(vi.mocked(setWindowMode).mock.calls[0]?.[0]).toBe(false);
+      expect(wrapper.find(".app-shell").classes()).not.toContain("app-shell--expanded");
+      expect(wrapper.find("button.collapsed-island__meta").text()).toBe("显示全部任务");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("waits until the opening guard finishes before collapsing on focus loss", async () => {
+    vi.useFakeTimers();
+
+    try {
+      let focusChanged: ((focused: boolean) => void) | undefined;
+      vi.mocked(subscribeWindowFocusChanged).mockImplementation(async (handler) => {
+        focusChanged = handler;
+        return () => undefined;
+      });
+
+      const taskStore = useTaskStore();
+      taskStore.tasks = [runningTask("task-a", "A")];
+
+      const wrapper = mount(IslandApp);
+      await flushPromises();
+
+      await wrapper.find("button.collapsed-island__meta").trigger("click");
+      await flushPromises();
+      expect(wrapper.find("button.collapsed-island__meta").attributes("disabled")).toBeDefined();
+
+      vi.mocked(setWindowMode).mockClear();
+      focusChanged?.(false);
+      await flushPromises();
+
+      expect(vi.mocked(setWindowMode)).not.toHaveBeenCalled();
+
+      await vi.advanceTimersByTimeAsync(260);
+      await flushPromises();
+      await vi.advanceTimersByTimeAsync(900);
+      await flushPromises();
+
+      expect(vi.mocked(setWindowMode).mock.calls[0]?.[0]).toBe(false);
+      expect(wrapper.find(".app-shell").classes()).not.toContain("app-shell--expanded");
     } finally {
       vi.useRealTimers();
     }

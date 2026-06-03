@@ -175,6 +175,22 @@ export async function startWindowDrag(): Promise<void> {
   }
 }
 
+export async function subscribeWindowFocusChanged(onFocusChanged: (focused: boolean) => void): Promise<() => void> {
+  if (isTauri()) {
+    return getCurrentWindow().onFocusChanged(({ payload }) => onFocusChanged(payload));
+  }
+
+  const handleFocus = () => onFocusChanged(true);
+  const handleBlur = () => onFocusChanged(false);
+  window.addEventListener("focus", handleFocus);
+  window.addEventListener("blur", handleBlur);
+
+  return () => {
+    window.removeEventListener("focus", handleFocus);
+    window.removeEventListener("blur", handleBlur);
+  };
+}
+
 export async function openAppWindow(kind: "settings" | "diagnostics"): Promise<void> {
   if (isTauri()) {
     return invoke("open_app_window", { kind });

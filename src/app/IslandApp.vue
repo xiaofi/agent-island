@@ -1,11 +1,17 @@
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { Bug, ChevronLeft, Settings } from "@lucide/vue";
 import IslandCollapsed from "@/components/island/IslandCollapsed.vue";
 import IslandExpanded from "@/components/island/IslandExpanded.vue";
 import TaskDetail from "@/components/island/TaskDetail.vue";
 import IconButton from "@/components/primitives/IconButton.vue";
-import { openAppWindow, setWindowMode, startWindowDrag, type IslandPanelDirection } from "@/bridge/tauriApi";
+import {
+  openAppWindow,
+  setWindowMode,
+  startWindowDrag,
+  subscribeWindowFocusChanged,
+  type IslandPanelDirection,
+} from "@/bridge/tauriApi";
 import { maskTask } from "@/domain/privacy";
 import { needsAttention } from "@/domain/taskPriority";
 import type { AgentTask } from "@/domain/taskTypes";
@@ -29,6 +35,9 @@ const selectedTaskId = ref<string>();
 let transitionToken = 0;
 let panelOpenFallbackTimer: number | undefined;
 let collapseFallbackTimer: number | undefined;
+let pendingFocusCollapse = false;
+let unsubscribeWindowFocusChanged: (() => void) | undefined;
+let isUnmounted = false;
 
 const selectedRawTask = computed(() => taskStore.tasks.find((task) => task.id === selectedTaskId.value));
 const selectedVisibleTask = computed(() => {
@@ -110,6 +119,18 @@ function collapse() {
   scheduleCollapseFallback(transitionToken);
 }
 
+function requestFocusCollapse() {
+  if (!isLayoutExpanded.value && !isPanelOpen.value) {
+    return;
+  }
+
+  pendingFocusCollapse = true;
+
+  if (!isIslandTransitioning.value) {
+    collapse();
+  }
+}
+
 function toggleIsland() {
   if (isLayoutExpanded.value) {
     collapse();
@@ -160,6 +181,10 @@ function finishPanelOpen(token: number) {
 
   clearPanelOpenFallback();
   isPanelOpening.value = false;
+
+  if (pendingFocusCollapse) {
+    collapse();
+  }
 }
 
 function scheduleCollapseFallback(token: number) {
@@ -198,6 +223,7 @@ async function finishCollapse(token: number) {
   isPanelOpening.value = false;
   isPanelClosing.value = false;
   isWindowModePending.value = false;
+  pendingFocusCollapse = false;
   clearPanelOpenFallback();
 }
 
@@ -219,6 +245,32 @@ async function applyWindowMode(expanded: boolean): Promise<IslandPanelDirection>
     return "down";
   }
 }
+
+onMounted(() => {
+  isUnmounted = false;
+  void subscribeWindowFocusChanged((focused) => {
+    if (focused) {
+      pendingFocusCollapse = false;
+      return;
+    }
+
+    requestFocusCollapse();
+  }).then((unsubscribe) => {
+    if (isUnmounted) {
+      unsubscribe();
+      return;
+    }
+
+    unsubscribeWindowFocusChanged = unsubscribe;
+  });
+});
+
+onBeforeUnmount(() => {
+  isUnmounted = true;
+  unsubscribeWindowFocusChanged?.();
+  clearPanelOpenFallback();
+  clearCollapseFallback();
+});
 </script>
 
 <template>
