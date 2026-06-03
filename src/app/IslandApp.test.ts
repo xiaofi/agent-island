@@ -126,4 +126,73 @@ describe("IslandApp", () => {
     expect(wrapper.find(".app-shell").classes()).toContain("app-shell--expanded");
     expect(wrapper.find(".app-shell").classes()).toContain("app-shell--expand-up");
   });
+
+  it("ignores repeated summary toggles while native window mode is pending", async () => {
+    vi.useFakeTimers();
+
+    try {
+      let resolveExpandedMode: (direction: "down") => void = () => undefined;
+      const expandedMode = new Promise<"down">((resolve) => {
+        resolveExpandedMode = resolve;
+      });
+      vi.mocked(setWindowMode).mockImplementation(async (expanded) => (expanded ? expandedMode : "down"));
+
+      const taskStore = useTaskStore();
+      taskStore.tasks = [runningTask("task-a", "A")];
+
+      const wrapper = mount(IslandApp);
+      await flushPromises();
+      vi.mocked(setWindowMode).mockClear();
+
+      const summaryButton = wrapper.find("button.collapsed-island__meta");
+      await summaryButton.trigger("click");
+      await summaryButton.trigger("click");
+
+      expect(summaryButton.attributes("disabled")).toBeDefined();
+      expect(setWindowMode).toHaveBeenCalledTimes(1);
+      expect(vi.mocked(setWindowMode).mock.calls[0]?.[0]).toBe(true);
+
+      resolveExpandedMode("down");
+      await flushPromises();
+      await vi.advanceTimersByTimeAsync(260);
+      await flushPromises();
+
+      expect(wrapper.find(".app-shell").classes()).toContain("app-shell--expanded");
+      expect(wrapper.find("button.collapsed-island__meta").attributes("disabled")).toBeUndefined();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("finishes collapse if the panel leave callback is delayed", async () => {
+    vi.useFakeTimers();
+
+    try {
+      const taskStore = useTaskStore();
+      taskStore.tasks = [runningTask("task-a", "A")];
+
+      const wrapper = mount(IslandApp);
+      await flushPromises();
+
+      await wrapper.find("button.collapsed-island__meta").trigger("click");
+      await flushPromises();
+      await vi.advanceTimersByTimeAsync(260);
+      await flushPromises();
+
+      expect(wrapper.find(".app-shell").classes()).toContain("app-shell--expanded");
+      vi.mocked(setWindowMode).mockClear();
+
+      await wrapper.find("button.collapsed-island__meta").trigger("click");
+      expect(wrapper.find("button.collapsed-island__meta").attributes("disabled")).toBeDefined();
+
+      await vi.advanceTimersByTimeAsync(900);
+      await flushPromises();
+
+      expect(vi.mocked(setWindowMode).mock.calls[0]?.[0]).toBe(false);
+      expect(wrapper.find(".app-shell").classes()).not.toContain("app-shell--expanded");
+      expect(wrapper.find("button.collapsed-island__meta").attributes("disabled")).toBeUndefined();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

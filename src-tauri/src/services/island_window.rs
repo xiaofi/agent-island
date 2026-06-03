@@ -42,6 +42,8 @@ fn configure_platform_window(window: &WebviewWindow) -> Result<(), String> {
         behavior |= NSWindowCollectionBehavior::Stationary;
         behavior |= NSWindowCollectionBehavior::IgnoresCycle;
         ns_window.setCollectionBehavior(behavior);
+        ns_window.setAcceptsMouseMovedEvents(true);
+        ns_window.setMovableByWindowBackground(true);
         ns_window.setCanHide(false);
         ns_window.setHidesOnDeactivate(false);
         ns_window.setExcludedFromWindowsMenu(true);

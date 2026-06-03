@@ -6,12 +6,15 @@ import { startWindowDrag } from "@/bridge/tauriApi";
 import { statusLabel } from "@/domain/privacy";
 import type { AgentTask } from "@/domain/taskTypes";
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   alertTasks: AgentTask[];
   runningCount: number;
   loading: boolean;
   expanded: boolean;
-}>();
+  busy?: boolean;
+}>(), {
+  busy: false,
+});
 
 const emit = defineEmits<{
   acknowledgeCompleted: [taskIds: string[]];
@@ -57,6 +60,7 @@ function handlePointerDown(event: PointerEvent) {
     return;
   }
 
+  (event.currentTarget as HTMLElement).setPointerCapture?.(event.pointerId);
   pointerStart = { x: event.clientX, y: event.clientY };
   didDrag = false;
 }
@@ -84,6 +88,10 @@ function handlePointerUp() {
 }
 
 function handleClick() {
+  if (props.busy) {
+    return;
+  }
+
   if (didDrag) {
     didDrag = false;
     return;
@@ -121,16 +129,23 @@ function taskText(task: AgentTask) {
 </script>
 
 <template>
-  <div class="collapsed-island" :class="{ 'collapsed-island--stacked': isStacked }">
+  <div
+    class="collapsed-island"
+    :class="{ 'collapsed-island--stacked': isStacked }"
+    @pointerdown="handlePointerDown"
+    @pointermove="handlePointerMove"
+    @pointerup="handlePointerUp"
+    @pointercancel="handlePointerUp"
+  >
     <template v-if="isStacked">
       <span
         v-for="task in visibleAlertTasks"
         :key="task.id"
         class="collapsed-island__row collapsed-island__row--alert"
       >
-        <span class="collapsed-island__left">
+        <span class="collapsed-island__left" data-tauri-drag-region>
           <StatusDot :status="task.status" />
-          <span class="collapsed-island__text">{{ taskText(task) }}</span>
+          <span class="collapsed-island__text" data-tauri-drag-region>{{ taskText(task) }}</span>
         </span>
         <span class="collapsed-island__actions">
           <button
@@ -150,8 +165,8 @@ function taskText(task: AgentTask) {
         v-if="hasAlertOverflow"
         class="collapsed-island__row collapsed-island__row--alert collapsed-island__row--overflow"
       >
-        <span class="collapsed-island__left">
-          <span class="collapsed-island__text">另有 {{ hiddenAlertCount }} 条任务需要关注</span>
+        <span class="collapsed-island__left" data-tauri-drag-region>
+          <span class="collapsed-island__text" data-tauri-drag-region>另有 {{ hiddenAlertCount }} 条任务需要关注</span>
         </span>
       </span>
     </template>
@@ -163,20 +178,22 @@ function taskText(task: AgentTask) {
       @click="handleClick"
       @keydown.enter.prevent="handleClick"
       @keydown.space.prevent="handleClick"
-      @pointerdown="handlePointerDown"
-      @pointermove="handlePointerMove"
-      @pointerup="handlePointerUp"
-      @pointercancel="handlePointerUp"
     >
-      <span class="collapsed-island__left">
+      <span class="collapsed-island__left" data-tauri-drag-region>
         <StatusDot v-if="primaryAlertTask || runningCount > 0 || loading" :status="summaryDotStatus" />
         <span v-else class="collapsed-island__idle-dot" />
-        <span class="collapsed-island__text">{{ isStacked ? runningSummaryText : primaryRowText }}</span>
+        <span class="collapsed-island__text" data-tauri-drag-region>{{ isStacked ? runningSummaryText : primaryRowText }}</span>
       </span>
       <span class="collapsed-island__actions">
-        <span class="collapsed-island__meta">
+        <button
+          class="collapsed-island__meta collapsed-island__meta-button"
+          type="button"
+          :disabled="busy"
+          @click.stop="handleClick"
+          @pointerdown.stop
+        >
           {{ summaryActionText }}
-        </span>
+        </button>
         <button
           v-if="!isStacked && primaryAlertTask?.status === 'completed'"
           class="collapsed-island__ack"

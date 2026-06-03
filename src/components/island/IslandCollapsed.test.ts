@@ -1,9 +1,14 @@
 // @vitest-environment happy-dom
 
 import { mount } from "@vue/test-utils";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import IslandCollapsed from "@/components/island/IslandCollapsed.vue";
+import { startWindowDrag } from "@/bridge/tauriApi";
 import type { AgentTask, TaskStatus } from "@/domain/taskTypes";
+
+vi.mock("@/bridge/tauriApi", () => ({
+  startWindowDrag: vi.fn(),
+}));
 
 function task(id: string, title: string, status: TaskStatus): AgentTask {
   return {
@@ -17,6 +22,10 @@ function task(id: string, title: string, status: TaskStatus): AgentTask {
 }
 
 describe("IslandCollapsed", () => {
+  beforeEach(() => {
+    vi.mocked(startWindowDrag).mockReset();
+  });
+
   it("keeps a single attention item in the compact island shape", async () => {
     const wrapper = mount(IslandCollapsed, {
       props: {
@@ -144,5 +153,60 @@ describe("IslandCollapsed", () => {
 
     expect(wrapper.find(".collapsed-island__row--summary").text()).toContain("收起列表");
     expect(wrapper.text()).not.toContain("显示全部任务");
+  });
+
+  it("marks collapsed content as draggable and blocks text selection while dragging", async () => {
+    const wrapper = mount(IslandCollapsed, {
+      props: {
+        alertTasks: [task("task-cmux", "cmux", "completed")],
+        runningCount: 0,
+        loading: false,
+        expanded: false,
+      },
+    });
+
+    const root = wrapper.find(".collapsed-island");
+    const text = wrapper.find(".collapsed-island__text");
+
+    expect(wrapper.find(".collapsed-island__left").attributes("data-tauri-drag-region")).toBe("");
+    expect(text.attributes("data-tauri-drag-region")).toBe("");
+    expect(wrapper.find(".collapsed-island__meta").attributes("data-tauri-drag-region")).toBeUndefined();
+
+    await root.trigger("pointerdown", {
+      button: 0,
+      clientX: 10,
+      clientY: 10,
+      pointerId: 1,
+    });
+    await root.trigger("pointermove", {
+      clientX: 22,
+      clientY: 10,
+    });
+
+    expect(startWindowDrag).toHaveBeenCalledTimes(1);
+
+    await wrapper.find(".collapsed-island__row--summary").trigger("click");
+    expect(wrapper.emitted("expand")).toBeUndefined();
+  });
+
+  it("keeps the summary action clickable", async () => {
+    const wrapper = mount(IslandCollapsed, {
+      props: {
+        alertTasks: [task("task-cmux", "cmux", "completed")],
+        runningCount: 0,
+        loading: false,
+        expanded: false,
+      },
+    });
+
+    const summaryAction = wrapper.find("button.collapsed-island__meta");
+
+    expect(summaryAction.text()).toBe("显示全部任务");
+    expect(summaryAction.attributes("data-tauri-drag-region")).toBeUndefined();
+
+    await summaryAction.trigger("click");
+
+    expect(wrapper.emitted("expand")).toHaveLength(1);
+    expect(startWindowDrag).not.toHaveBeenCalled();
   });
 });

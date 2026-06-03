@@ -13,16 +13,22 @@ import { usePreferencesStore } from "@/stores/preferencesStore";
 import { useTaskStore } from "@/stores/taskStore";
 
 type IslandMode = "collapsed" | "list" | "detail";
+const PANEL_TRANSITION_GUARD_MS = 260;
+const COLLAPSE_FALLBACK_DELAY_MS = 900;
 
 const taskStore = useTaskStore();
 const preferencesStore = usePreferencesStore();
 const mode = ref<IslandMode>("collapsed");
 const isPanelOpen = ref(false);
+const isPanelOpening = ref(false);
 const isPanelClosing = ref(false);
 const isLayoutExpanded = ref(false);
+const isWindowModePending = ref(false);
 const panelDirection = ref<IslandPanelDirection>("down");
 const selectedTaskId = ref<string>();
 let transitionToken = 0;
+let panelOpenFallbackTimer: number | undefined;
+let collapseFallbackTimer: number | undefined;
 
 const selectedRawTask = computed(() => taskStore.tasks.find((task) => task.id === selectedTaskId.value));
 const selectedVisibleTask = computed(() => {
@@ -37,6 +43,9 @@ const hasStackedCollapsedRows = computed(
   () =>
     collapsedAlertTasks.value.length > 1 ||
     (collapsedAlertTasks.value.length === 1 && (runningSummaryCount.value > 0 || taskStore.loading)),
+);
+const isIslandTransitioning = computed(
+  () => isWindowModePending.value || isPanelOpening.value || isPanelClosing.value,
 );
 
 const collapsedHeight = computed(() => {
@@ -58,6 +67,10 @@ function isRunningSummaryTask(task: AgentTask) {
 }
 
 async function showList() {
+  if (isIslandTransitioning.value) {
+    return;
+  }
+
   mode.value = "list";
 
   if (isLayoutExpanded.value) {
@@ -67,17 +80,21 @@ async function showList() {
 
   const token = ++transitionToken;
   isPanelClosing.value = false;
+  isWindowModePending.value = true;
   const nextPanelDirection = await applyWindowMode(true);
 
   if (token === transitionToken) {
     panelDirection.value = nextPanelDirection;
     isLayoutExpanded.value = true;
     isPanelOpen.value = true;
+    isPanelOpening.value = true;
+    isWindowModePending.value = false;
+    schedulePanelOpenFallback(token);
   }
 }
 
 function collapse() {
-  if (isPanelClosing.value) {
+  if (isIslandTransitioning.value) {
     return;
   }
 
@@ -90,6 +107,7 @@ function collapse() {
   }
 
   isPanelOpen.value = false;
+  scheduleCollapseFallback(transitionToken);
 }
 
 function toggleIsland() {
@@ -102,16 +120,71 @@ function toggleIsland() {
 }
 
 function selectTask(taskId: string) {
+  if (isIslandTransitioning.value) {
+    return;
+  }
+
   selectedTaskId.value = taskId;
   mode.value = "detail";
   isPanelOpen.value = true;
+}
+
+function handlePanelAfterEnter() {
+  finishPanelOpen(transitionToken);
 }
 
 async function handlePanelAfterLeave() {
   await finishCollapse(transitionToken);
 }
 
+function schedulePanelOpenFallback(token: number) {
+  clearPanelOpenFallback();
+  panelOpenFallbackTimer = window.setTimeout(() => {
+    finishPanelOpen(token);
+  }, PANEL_TRANSITION_GUARD_MS);
+}
+
+function clearPanelOpenFallback() {
+  if (panelOpenFallbackTimer === undefined) {
+    return;
+  }
+
+  window.clearTimeout(panelOpenFallbackTimer);
+  panelOpenFallbackTimer = undefined;
+}
+
+function finishPanelOpen(token: number) {
+  if (token !== transitionToken || !isPanelOpening.value) {
+    return;
+  }
+
+  clearPanelOpenFallback();
+  isPanelOpening.value = false;
+}
+
+function scheduleCollapseFallback(token: number) {
+  clearCollapseFallback();
+  collapseFallbackTimer = window.setTimeout(() => {
+    void finishCollapse(token);
+  }, COLLAPSE_FALLBACK_DELAY_MS);
+}
+
+function clearCollapseFallback() {
+  if (collapseFallbackTimer === undefined) {
+    return;
+  }
+
+  window.clearTimeout(collapseFallbackTimer);
+  collapseFallbackTimer = undefined;
+}
+
 async function finishCollapse(token: number) {
+  if (token !== transitionToken || !isPanelClosing.value) {
+    return;
+  }
+
+  clearCollapseFallback();
+  isWindowModePending.value = true;
   await applyWindowMode(false);
 
   if (token !== transitionToken) {
@@ -122,13 +195,16 @@ async function finishCollapse(token: number) {
   mode.value = "collapsed";
   isLayoutExpanded.value = false;
   panelDirection.value = "down";
+  isPanelOpening.value = false;
   isPanelClosing.value = false;
+  isWindowModePending.value = false;
+  clearPanelOpenFallback();
 }
 
 watch(
   collapsedHeight,
   () => {
-    if (!isLayoutExpanded.value) {
+    if (!isLayoutExpanded.value && !isWindowModePending.value) {
       void applyWindowMode(false);
     }
   },
@@ -160,21 +236,22 @@ async function applyWindowMode(expanded: boolean): Promise<IslandPanelDirection>
           :running-count="runningSummaryCount"
           :loading="taskStore.loading"
           :expanded="isLayoutExpanded"
+          :busy="isIslandTransitioning"
           @acknowledge-completed="taskStore.acknowledgeCompletedTasks"
           @expand="toggleIsland"
         />
       </div>
 
-      <Transition name="island-drop" @after-leave="handlePanelAfterLeave">
+      <Transition name="island-drop" @after-enter="handlePanelAfterEnter" @after-leave="handlePanelAfterLeave">
         <div v-if="isPanelOpen" class="panel panel--island">
           <header class="panel__header">
             <div class="panel__title" @pointerdown="startWindowDrag">
               <IconButton v-if="mode === 'detail'" label="返回列表" @click="showList">
                 <ChevronLeft :size="16" />
               </IconButton>
-              <div>
-                <p class="panel__eyebrow">Agent Island</p>
-                <h1>{{ mode === "detail" ? "任务详情" : "活跃任务" }}</h1>
+              <div data-tauri-drag-region>
+                <p class="panel__eyebrow" data-tauri-drag-region>Agent Island</p>
+                <h1 data-tauri-drag-region>{{ mode === "detail" ? "任务详情" : "活跃任务" }}</h1>
               </div>
             </div>
 
