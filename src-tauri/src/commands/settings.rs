@@ -16,6 +16,10 @@ pub async fn update_settings(patch: AppSettingsPatch) -> Result<AppSettings, Str
         settings.privacy = privacy;
     }
 
+    if let Some(quiet_mode) = patch.quiet_mode {
+        settings.quiet_mode = quiet_mode;
+    }
+
     if let Some(mouse_passthrough) = patch.mouse_passthrough {
         settings.mouse_passthrough = mouse_passthrough;
     }
@@ -26,6 +30,10 @@ pub async fn update_settings(patch: AppSettingsPatch) -> Result<AppSettings, Str
 
     if let Some(hook_source) = patch.hook_source {
         settings.hook_source = hook_source;
+    }
+
+    if let Some(island_window) = patch.island_window {
+        settings.island_window = island_window;
     }
 
     config_store::save_settings(&settings)?;

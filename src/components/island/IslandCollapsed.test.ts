@@ -7,6 +7,7 @@ import { startWindowDrag } from "@/bridge/tauriApi";
 import type { AgentTask, TaskStatus } from "@/domain/taskTypes";
 
 vi.mock("@/bridge/tauriApi", () => ({
+  saveIslandWindowPosition: vi.fn(),
   startWindowDrag: vi.fn(),
 }));
 
@@ -151,7 +152,7 @@ describe("IslandCollapsed", () => {
       },
     });
 
-    expect(wrapper.find(".collapsed-island__row--summary").text()).toContain("收起列表");
+    expect(wrapper.find(".collapsed-island__row--summary").text()).toContain("收起全部任务");
     expect(wrapper.text()).not.toContain("显示全部任务");
   });
 

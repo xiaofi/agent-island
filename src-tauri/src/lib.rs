@@ -33,6 +33,7 @@ pub fn run() {
             commands::task::open_workdir,
             commands::task::copy_task_summary,
             commands::window::set_mouse_passthrough,
+            commands::window::save_island_window_position,
             commands::window::set_window_mode,
             commands::window::open_app_window,
             commands::window::toggle_window_visibility,

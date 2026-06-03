@@ -6,6 +6,8 @@ import { isActiveTask, needsAttention, pickPrimaryTask, sortTasksByPriority } fr
 import type { AdapterDiagnostic, AgentEvent, AgentSource, AgentTask } from "@/domain/taskTypes";
 import { usePreferencesStore } from "@/stores/preferencesStore";
 
+const quietModeStatuses = new Set<AgentTask["status"]>(["waiting-user", "failed", "completed"]);
+
 export const useTaskStore = defineStore("tasks", () => {
   const tasks = ref<AgentTask[]>([]);
   const diagnostics = ref<AdapterDiagnostic[]>([]);
@@ -16,24 +18,27 @@ export const useTaskStore = defineStore("tasks", () => {
   const preferences = usePreferencesStore();
 
   const sortedTasks = computed(() => sortTasksByPriority(tasks.value));
+  const displayTasks = computed(() =>
+    preferences.settings.quietMode ? sortedTasks.value.filter((task) => quietModeStatuses.has(task.status)) : sortedTasks.value,
+  );
   const completedAlertTasks = computed(() =>
-    sortedTasks.value.filter((task) => task.status === "completed" && !isAcknowledgedCompletedTask(task)),
+    displayTasks.value.filter((task) => task.status === "completed" && !isAcknowledgedCompletedTask(task)),
   );
   const completedAlertTask = computed(() => completedAlertTasks.value[0]);
   const attentionTasks = computed(() =>
-    sortedTasks.value.filter((task) => needsAttention(task) && !isAcknowledgedCompletedTask(task)),
+    displayTasks.value.filter((task) => needsAttention(task) && !isAcknowledgedCompletedTask(task)),
   );
-  const activeTasks = computed(() => sortedTasks.value.filter(isActiveTask));
+  const activeTasks = computed(() => displayTasks.value.filter(isActiveTask));
   const primaryTask = computed(() => {
     if (attentionTasks.value.length) {
       return attentionTasks.value[0];
     }
 
-    return pickPrimaryTask(activeTasks.value.length ? activeTasks.value : sortedTasks.value);
+    return pickPrimaryTask(activeTasks.value.length ? activeTasks.value : displayTasks.value);
   });
   const waitingCount = computed(() => tasks.value.filter((task) => task.status === "waiting-user").length);
 
-  const visibleTasks = computed(() => sortedTasks.value.map((task) => maskTask(task, preferences.privacy)));
+  const visibleTasks = computed(() => displayTasks.value.map((task) => maskTask(task, preferences.privacy)));
   const visiblePrimaryTask = computed(() => {
     const task = primaryTask.value;
     return task ? maskTask(task, preferences.privacy) : undefined;
@@ -134,6 +139,7 @@ export const useTaskStore = defineStore("tasks", () => {
     loading,
     now,
     sortedTasks,
+    displayTasks,
     completedAlertTasks,
     completedAlertTask,
     attentionTasks,

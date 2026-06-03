@@ -155,6 +155,12 @@ export async function setMousePassthrough(enabled: boolean): Promise<void> {
   }
 }
 
+export async function saveIslandWindowPosition(): Promise<void> {
+  if (isTauri()) {
+    return invoke("save_island_window_position");
+  }
+}
+
 export type IslandPanelDirection = "down" | "up";
 
 export async function setWindowMode(

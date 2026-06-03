@@ -2,7 +2,7 @@
 import { computed } from "vue";
 import { Check } from "@lucide/vue";
 import StatusDot from "@/components/primitives/StatusDot.vue";
-import { startWindowDrag } from "@/bridge/tauriApi";
+import { saveIslandWindowPosition, startWindowDrag } from "@/bridge/tauriApi";
 import { statusLabel } from "@/domain/privacy";
 import type { AgentTask } from "@/domain/taskTypes";
 
@@ -12,8 +12,12 @@ const props = withDefaults(defineProps<{
   loading: boolean;
   expanded: boolean;
   busy?: boolean;
+  showSummary?: boolean;
+  emptyText?: string;
 }>(), {
   busy: false,
+  showSummary: true,
+  emptyText: "暂无任务进行中",
 });
 
 const emit = defineEmits<{
@@ -40,7 +44,7 @@ const runningSummaryText = computed(() => {
     return "正在发现本地 agent";
   }
 
-  return props.runningCount > 0 ? `${props.runningCount} 个任务进行中` : "暂无任务进行中";
+  return props.runningCount > 0 ? `${props.runningCount} 个任务进行中` : props.emptyText;
 });
 const primaryRowText = computed(() => {
   const task = primaryAlertTask.value;
@@ -53,7 +57,7 @@ const summaryDotStatus = computed(() => {
 
   return primaryAlertTask.value.status;
 });
-const summaryActionText = computed(() => (props.expanded ? "收起列表" : "显示全部任务"));
+const summaryActionText = computed(() => (props.expanded ? "收起全部任务" : "显示全部任务"));
 
 function handlePointerDown(event: PointerEvent) {
   if (event.button !== 0) {
@@ -81,6 +85,11 @@ async function handlePointerMove(event: PointerEvent) {
   pointerStart = undefined;
   event.preventDefault();
   await startWindowDrag();
+  try {
+    await saveIslandWindowPosition();
+  } catch (error) {
+    console.warn("[agent-island] failed to save island window position", error);
+  }
 }
 
 function handlePointerUp() {
@@ -172,6 +181,7 @@ function taskText(task: AgentTask) {
     </template>
 
     <span
+      v-if="showSummary"
       class="collapsed-island__row collapsed-island__row--summary"
       role="button"
       tabindex="0"

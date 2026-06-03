@@ -15,6 +15,7 @@ const baseSettings: AppSettings = {
     hideTaskTitle: false,
     compactOnly: false,
   },
+  quietMode: false,
   mousePassthrough: false,
   enabledAdapters: ["manual", "codex", "claude-code"],
   hookSource: {
@@ -22,6 +23,7 @@ const baseSettings: AppSettings = {
     claudeCode: false,
     lastErrors: {},
   },
+  islandWindow: {},
 };
 
 function diagnostic(source: "codex" | "claude-code", status: AdapterDiagnostic["status"]): AdapterDiagnostic {
@@ -97,5 +99,15 @@ describe("SettingsPanel hook source controls", () => {
 
     expect(wrapper.text()).toContain("未接入");
     expect(wrapper.text()).not.toContain("卸载失败");
+  });
+
+  it("shows the quiet mode setting", () => {
+    const settings = structuredClone(baseSettings);
+    settings.quietMode = true;
+
+    const wrapper = mountPanel(settings, [diagnostic("codex", "unavailable"), diagnostic("claude-code", "unavailable")]);
+
+    expect(wrapper.text()).toContain("安静模式");
+    expect(wrapper.findAll("input[type='checkbox']").some((input) => (input.element as HTMLInputElement).checked)).toBe(true);
   });
 });

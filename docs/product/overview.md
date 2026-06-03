@@ -26,11 +26,15 @@ Agent Island 是一个本地桌面悬浮状态层，用于让开发者快速知�
 - 详情态：展示单任务元信息、最近事件、等待原因或错误摘要。
 - 完整窗口：设置、诊断和后续复杂功能打开独立桌面窗口。
 
-压缩态中，`waiting-user`、`failed`、`completed`、`paused`、`stale` 这类需要关注的任务逐条展示；`discovering`、`running`、`thinking`、`tool-running` 合并为“N 个任务进行中”。底部/单行右侧入口在收起时显示“显示全部任务”，展开后显示“收起列表”。
+压缩态中，`waiting-user`、`failed`、`completed`、`paused`、`stale` 这类需要关注的任务逐条展示；`discovering`、`running`、`thinking`、`tool-running` 合并为“N 个任务进行中”。底部/单行右侧入口在收起时显示“显示全部任务”，展开后显示“收起全部任务”。
 
 展开的任务列表在悬浮岛窗口失焦后自动收起，回到压缩态。
 
-压缩态悬浮岛整体可拖拽，文字不可选中；macOS 原生窗口策略继续遵循 ADR 0003，不把现有 Tauri `NSWindow` 改成 `NonactivatingPanel` style。
+压缩态悬浮岛整体可拖拽，文字不可选中；拖拽结束后保存当前位置。启动时恢复上次位置；如果保存位置不在当前可见屏幕内，会在启动恢复时重定位到可用屏幕内。
+
+安静模式开启后，悬浮岛和展开列表只显示 `waiting-user`、`failed`、`completed` 任务，隐藏普通 `discovering`、`running`、`thinking`、`tool-running` 状态。
+
+macOS 原生窗口策略继续遵循 ADR 0003，不把现有 Tauri `NSWindow` 改成 `NonactivatingPanel` style。
 
 任务标题优先来自对应 agent 的本机会话历史标题；Codex 通过 session id 查本地索引，Claude Code 可通过本机 transcript 指针读取 `aiTitle`、标题或 `summary` 字段。如果无法查到标题，则回退为当前工作目录名。
 

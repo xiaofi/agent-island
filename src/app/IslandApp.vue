@@ -7,6 +7,7 @@ import TaskDetail from "@/components/island/TaskDetail.vue";
 import IconButton from "@/components/primitives/IconButton.vue";
 import {
   openAppWindow,
+  saveIslandWindowPosition,
   setWindowMode,
   startWindowDrag,
   subscribeWindowFocusChanged,
@@ -45,25 +46,41 @@ const selectedVisibleTask = computed(() => {
   return task ? maskTask(task, preferencesStore.privacy) : undefined;
 });
 const collapsedAlertTasks = computed(() =>
-  taskStore.sortedTasks.filter(needsAttention).map((task) => maskTask(task, preferencesStore.privacy)),
+  taskStore.displayTasks.filter(needsAttention).map((task) => maskTask(task, preferencesStore.privacy)),
 );
-const runningSummaryCount = computed(() => taskStore.tasks.filter(isRunningSummaryTask).length);
+const runningSummaryCount = computed(() =>
+  preferencesStore.settings.quietMode ? 0 : taskStore.tasks.filter(isRunningSummaryTask).length,
+);
+const showLoadingSummary = computed(() => !preferencesStore.settings.quietMode && taskStore.loading);
+const hasCollapsedAlertOverflow = computed(() => collapsedAlertTasks.value.length > 4);
+const visibleCollapsedAlertRowCount = computed(() =>
+  hasCollapsedAlertOverflow.value ? 3 : Math.min(collapsedAlertTasks.value.length, 4),
+);
 const hasStackedCollapsedRows = computed(
   () =>
     collapsedAlertTasks.value.length > 1 ||
-    (collapsedAlertTasks.value.length === 1 && (runningSummaryCount.value > 0 || taskStore.loading)),
+    (collapsedAlertTasks.value.length === 1 && (runningSummaryCount.value > 0 || showLoadingSummary.value)),
+);
+const showCollapsedSummaryRow = computed(
+  () =>
+    !hasStackedCollapsedRows.value ||
+    runningSummaryCount.value > 0 ||
+    showLoadingSummary.value ||
+    isLayoutExpanded.value ||
+    hasCollapsedAlertOverflow.value,
 );
 const isIslandTransitioning = computed(
   () => isWindowModePending.value || isPanelOpening.value || isPanelClosing.value,
 );
 
 const collapsedHeight = computed(() => {
-  const visibleAlertRowCount = Math.min(collapsedAlertTasks.value.length, 4);
   if (!hasStackedCollapsedRows.value) {
     return 44;
   }
 
-  return Math.max(44, 12 + (visibleAlertRowCount + 1) * 30);
+  const overflowRowCount = hasCollapsedAlertOverflow.value ? 1 : 0;
+  const summaryRowCount = showCollapsedSummaryRow.value ? 1 : 0;
+  return Math.max(44, 12 + (visibleCollapsedAlertRowCount.value + overflowRowCount + summaryRowCount) * 30);
 });
 
 function isRunningSummaryTask(task: AgentTask) {
@@ -246,8 +263,18 @@ async function applyWindowMode(expanded: boolean): Promise<IslandPanelDirection>
   }
 }
 
+async function handleWindowDrag() {
+  await startWindowDrag();
+  try {
+    await saveIslandWindowPosition();
+  } catch (error) {
+    console.warn("[agent-island] failed to save island window position", error);
+  }
+}
+
 onMounted(() => {
   isUnmounted = false;
+
   void subscribeWindowFocusChanged((focused) => {
     if (focused) {
       pendingFocusCollapse = false;
@@ -286,9 +313,11 @@ onBeforeUnmount(() => {
         <IslandCollapsed
           :alert-tasks="collapsedAlertTasks"
           :running-count="runningSummaryCount"
-          :loading="taskStore.loading"
+          :loading="showLoadingSummary"
           :expanded="isLayoutExpanded"
           :busy="isIslandTransitioning"
+          :show-summary="showCollapsedSummaryRow"
+          :empty-text="preferencesStore.settings.quietMode ? '暂无需关注任务' : '暂无任务进行中'"
           @acknowledge-completed="taskStore.acknowledgeCompletedTasks"
           @expand="toggleIsland"
         />
@@ -297,7 +326,7 @@ onBeforeUnmount(() => {
       <Transition name="island-drop" @after-enter="handlePanelAfterEnter" @after-leave="handlePanelAfterLeave">
         <div v-if="isPanelOpen" class="panel panel--island">
           <header class="panel__header">
-            <div class="panel__title" @pointerdown="startWindowDrag">
+            <div class="panel__title" @pointerdown="handleWindowDrag">
               <IconButton v-if="mode === 'detail'" label="返回列表" @click="showList">
                 <ChevronLeft :size="16" />
               </IconButton>

@@ -17,6 +17,15 @@ pub async fn set_mouse_passthrough(app: AppHandle, enabled: bool) -> Result<(), 
 }
 
 #[tauri::command]
+pub async fn save_island_window_position(app: AppHandle) -> Result<(), String> {
+    let window = app
+        .get_webview_window("main")
+        .ok_or_else(|| "main window not found".to_string())?;
+
+    island_window::save_current_position(&window)
+}
+
+#[tauri::command]
 pub async fn set_window_mode(
     window: Window,
     expanded: bool,

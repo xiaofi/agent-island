@@ -107,11 +107,18 @@ export interface HookSourceSettings {
   lastErrors: HookSourceErrors;
 }
 
+export interface IslandWindowSettings {
+  x?: number;
+  y?: number;
+}
+
 export interface AppSettings {
   privacy: PrivacySettings;
+  quietMode: boolean;
   mousePassthrough: boolean;
   enabledAdapters: AgentSource[];
   hookSource: HookSourceSettings;
+  islandWindow: IslandWindowSettings;
 }
 
 export interface AgentBridgeSubscriptions {

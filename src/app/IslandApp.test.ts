@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import IslandApp from "@/app/IslandApp.vue";
 import { setWindowMode, subscribeWindowFocusChanged } from "@/bridge/tauriApi";
 import type { AgentTask } from "@/domain/taskTypes";
+import { usePreferencesStore } from "@/stores/preferencesStore";
 import { useTaskStore } from "@/stores/taskStore";
 
 vi.mock("@/bridge/tauriApi", () => ({
@@ -15,6 +16,7 @@ vi.mock("@/bridge/tauriApi", () => ({
       hideTaskTitle: false,
       compactOnly: false,
     },
+    quietMode: false,
     mousePassthrough: false,
     enabledAdapters: ["manual", "codex", "claude-code"],
     hookSource: {
@@ -22,11 +24,13 @@ vi.mock("@/bridge/tauriApi", () => ({
       claudeCode: false,
       lastErrors: {},
     },
+    islandWindow: {},
   })),
   getTasks: vi.fn(async () => []),
   isRunningInTauri: vi.fn(() => false),
   openAppWindow: vi.fn(),
   runDiscovery: vi.fn(async () => []),
+  saveIslandWindowPosition: vi.fn(),
   setWindowMode: vi.fn(),
   startWindowDrag: vi.fn(),
   subscribeWindowFocusChanged: vi.fn(async () => () => undefined),
@@ -113,6 +117,23 @@ describe("IslandApp", () => {
     expect(wrapper.find(".island-trigger").classes()).not.toContain("island-trigger--stacked");
     expect(wrapper.text()).toContain("1 个任务进行中");
     expect(wrapper.text()).not.toContain("已暂停");
+  });
+
+  it("hides ordinary running work in quiet mode", async () => {
+    const preferencesStore = usePreferencesStore();
+    preferencesStore.settings.quietMode = true;
+
+    const taskStore = useTaskStore();
+    taskStore.tasks = [runningTask("task-a", "A"), completedTask("task-b", "B")];
+    taskStore.loading = true;
+
+    const wrapper = mount(IslandApp);
+    await flushPromises();
+
+    expect(wrapper.text()).toContain("已完成");
+    expect(wrapper.text()).not.toContain("任务进行中");
+    expect(wrapper.text()).not.toContain("正在发现本地 agent");
+    expect(wrapper.find(".island-trigger").classes()).not.toContain("island-trigger--stacked");
   });
 
   it("lays out the expanded panel above the trigger when the native window opens upward", async () => {

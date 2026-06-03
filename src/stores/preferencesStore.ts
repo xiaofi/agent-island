@@ -17,6 +17,7 @@ export const usePreferencesStore = defineStore("preferences", () => {
       hideTaskTitle: false,
       compactOnly: false,
     },
+    quietMode: false,
     mousePassthrough: false,
     enabledAdapters: ["manual", "codex", "claude-code"],
     hookSource: {
@@ -24,6 +25,7 @@ export const usePreferencesStore = defineStore("preferences", () => {
       claudeCode: false,
       lastErrors: {},
     },
+    islandWindow: {},
   });
   const loaded = ref(false);
 
@@ -57,6 +59,10 @@ export const usePreferencesStore = defineStore("preferences", () => {
     await setMousePassthrough(enabled);
   }
 
+  async function setQuietMode(enabled: boolean) {
+    settings.value = await updateSettings({ quietMode: enabled });
+  }
+
   async function setHookSource(source: Extract<AgentSource, "codex" | "claude-code">, enabled: boolean) {
     settings.value = await setHookSourceEnabled(source, enabled);
   }
@@ -81,6 +87,7 @@ export const usePreferencesStore = defineStore("preferences", () => {
     load,
     patch,
     setPrivacy,
+    setQuietMode,
     setMousePassthroughPreference,
     setHookSource,
     retryHookSource,

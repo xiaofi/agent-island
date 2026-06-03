@@ -156,23 +156,36 @@ pub struct HookSourceSettings {
     pub last_errors: HookSourceErrors,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct IslandWindowSettings {
+    pub x: Option<i32>,
+    pub y: Option<i32>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AppSettings {
     pub privacy: PrivacySettings,
+    #[serde(default)]
+    pub quiet_mode: bool,
     pub mouse_passthrough: bool,
     pub enabled_adapters: Vec<AgentSource>,
     #[serde(default = "default_hook_source_settings")]
     pub hook_source: HookSourceSettings,
+    #[serde(default)]
+    pub island_window: IslandWindowSettings,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct AppSettingsPatch {
     pub privacy: Option<PrivacySettings>,
+    pub quiet_mode: Option<bool>,
     pub mouse_passthrough: Option<bool>,
     pub enabled_adapters: Option<Vec<AgentSource>>,
     pub hook_source: Option<HookSourceSettings>,
+    pub island_window: Option<IslandWindowSettings>,
 }
 
 pub fn now_iso() -> String {
@@ -186,6 +199,7 @@ pub fn default_settings() -> AppSettings {
             hide_task_title: false,
             compact_only: false,
         },
+        quiet_mode: false,
         mouse_passthrough: false,
         enabled_adapters: vec![
             AgentSource::Manual,
@@ -193,6 +207,7 @@ pub fn default_settings() -> AppSettings {
             AgentSource::ClaudeCode,
         ],
         hook_source: default_hook_source_settings(),
+        island_window: IslandWindowSettings::default(),
     }
 }
 

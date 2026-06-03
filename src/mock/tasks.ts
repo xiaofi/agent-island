@@ -95,6 +95,7 @@ export const mockSettings: AppSettings = {
     hideTaskTitle: false,
     compactOnly: false,
   },
+  quietMode: false,
   mousePassthrough: false,
   enabledAdapters: ["manual", "codex", "claude-code"],
   hookSource: {
@@ -102,6 +103,7 @@ export const mockSettings: AppSettings = {
     claudeCode: false,
     lastErrors: {},
   },
+  islandWindow: {},
 };
 
 export const mockDiagnostics: AdapterDiagnostic[] = [

@@ -174,6 +174,18 @@ async function selfTest(source: HookUiSource) {
       />
     </label>
 
+    <label class="toggle-row">
+      <span>
+        <strong>安静模式</strong>
+        <small>悬浮岛只显示等待处理、失败和完成任务，隐藏普通运行状态。</small>
+      </span>
+      <input
+        type="checkbox"
+        :checked="settings.quietMode"
+        @change="preferencesStore.setQuietMode(($event.target as HTMLInputElement).checked)"
+      />
+    </label>
+
     <section class="settings-section">
       <header class="settings-section__header">
         <div>
