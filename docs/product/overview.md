@@ -26,7 +26,7 @@ Agent Island 是一个本地桌面悬浮状态层，用于让开发者快速知�
 - 详情态：展示单任务元信息、最近事件、等待原因或错误摘要。
 - 完整窗口：设置、诊断和后续复杂功能打开独立桌面窗口。
 
-压缩态中，`waiting-user`、`failed`、`completed`、`paused`、`stale` 这类需要关注的任务逐条展示；`discovering`、`running`、`thinking`、`tool-running` 合并为“N 个任务进行中”。底部/单行右侧入口在收起时显示“显示全部任务”，展开后显示“收起全部任务”。
+压缩态中，`waiting-user`、`failed`、`completed`、`stale` 这类需要关注的任务逐条展示；`discovering`、`running`、`thinking`、`tool-running` 合并为“N 个任务进行中”。`paused` 表示用户主动中断，默认归档隐藏，不继续占用任务列表；后续同一会话恢复运行时重新显示。底部/单行右侧入口在收起时显示“显示全部任务”，展开后显示“收起全部任务”。
 
 展开的任务列表在悬浮岛窗口失焦后自动收起，回到压缩态。
 
@@ -45,6 +45,8 @@ macOS 原生窗口策略继续遵循 ADR 0003，不把现有 Tauri `NSWindow` �
 3. `tool-running`
 4. `thinking` / `running`
 5. `completed`
-6. `paused` / `stale`
+6. `stale`
+
+`paused` 是归档态，不参与默认列表排序。
 
 详细字段和交互见 [spec.md](spec.md)。

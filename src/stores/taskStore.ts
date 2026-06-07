@@ -7,6 +7,7 @@ import type { AdapterDiagnostic, AgentEvent, AgentSource, AgentTask } from "@/do
 import { usePreferencesStore } from "@/stores/preferencesStore";
 
 const quietModeStatuses = new Set<AgentTask["status"]>(["waiting-user", "failed", "completed"]);
+const archivedStatuses = new Set<AgentTask["status"]>(["paused"]);
 
 export const useTaskStore = defineStore("tasks", () => {
   const tasks = ref<AgentTask[]>([]);
@@ -18,8 +19,9 @@ export const useTaskStore = defineStore("tasks", () => {
   const preferences = usePreferencesStore();
 
   const sortedTasks = computed(() => sortTasksByPriority(tasks.value));
+  const listableTasks = computed(() => sortedTasks.value.filter((task) => !archivedStatuses.has(task.status)));
   const displayTasks = computed(() =>
-    preferences.settings.quietMode ? sortedTasks.value.filter((task) => quietModeStatuses.has(task.status)) : sortedTasks.value,
+    preferences.settings.quietMode ? listableTasks.value.filter((task) => quietModeStatuses.has(task.status)) : listableTasks.value,
   );
   const completedAlertTasks = computed(() =>
     displayTasks.value.filter((task) => task.status === "completed" && !isAcknowledgedCompletedTask(task)),
@@ -139,6 +141,7 @@ export const useTaskStore = defineStore("tasks", () => {
     loading,
     now,
     sortedTasks,
+    listableTasks,
     displayTasks,
     completedAlertTasks,
     completedAlertTask,

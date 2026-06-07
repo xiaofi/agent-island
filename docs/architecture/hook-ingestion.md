@@ -39,7 +39,7 @@ Vue / Pinia / Island UI
 
 - Codex 桌面端手动暂停不会通过 hook helper 写入 `events/codex.jsonl`；对应信号在本机会话 JSONL 里表现为 `event_msg.payload.type = "turn_aborted"`，`reason = "interrupted"`。
 - Rust ingest 只在已有 Codex hook 事件提供 `transcriptPath` 时，按行扫描本机会话 JSONL 的事件元数据行，提取 `timestamp` 和 `reason`，不保存 prompt、回复或 transcript 正文。
-- 如果 `turn_aborted` 比最新 hook 状态更新，任务归一化为 `paused`；`paused` 是用户主动操作后的次要状态，不触发压缩态关注提示。后续新的 `UserPromptSubmit`、`PreToolUse`、`PostToolUse` 等 hook 状态会恢复正常运行态。
+- 如果 `turn_aborted` 比最新 hook 状态更新，任务归一化为 `paused`；`paused` 表示用户已经主动中断，本轮不会继续占用压缩态或展开任务列表。后续新的 `UserPromptSubmit`、`PreToolUse`、`PostToolUse` 等 hook 状态会恢复正常运行态并重新显示。
 
 ## Hook 接收日志
 
