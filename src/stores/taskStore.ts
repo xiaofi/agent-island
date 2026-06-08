@@ -17,6 +17,7 @@ export const useTaskStore = defineStore("tasks", () => {
   const now = ref(Date.now());
   const acknowledgedCompletedEventKeys = ref(loadAcknowledgedCompletedEventKeys());
   const notifiedCompletedEventKeys = ref(loadCompletedEventKeys("agent-island-notified-completed-events"));
+  const manuallyClearedTaskKeys = ref(loadCompletedEventKeys("agent-island-manually-cleared-task-events"));
   const autoAcknowledgeTimers = new Map<string, number>();
 
   const preferences = usePreferencesStore();
@@ -86,7 +87,7 @@ export const useTaskStore = defineStore("tasks", () => {
   }
 
   function upsertTask(task: AgentTask) {
-    if (isAcknowledgedCompletedTask(task)) {
+    if (isAcknowledgedCompletedTask(task) || isManuallyClearedTask(task)) {
       removeTask(task.id);
       return;
     }
@@ -130,6 +131,23 @@ export const useTaskStore = defineStore("tasks", () => {
 
   function acknowledgeCompletedTask(taskId: string) {
     acknowledgeCompletedTasks([taskId]);
+  }
+
+  function completeAndAcknowledgeTask(taskId: string) {
+    const task = tasks.value.find((item) => item.id === taskId);
+    if (!task) {
+      return;
+    }
+
+    if (task.status === "completed") {
+      acknowledgeCompletedTask(taskId);
+      return;
+    }
+
+    const taskKey = manualClearanceKey(task);
+    manuallyClearedTaskKeys.value = new Set([...manuallyClearedTaskKeys.value, taskKey]);
+    saveCompletedEventKeys("agent-island-manually-cleared-task-events", manuallyClearedTaskKeys.value);
+    removeTask(taskId);
   }
 
   function acknowledgeCompletedTasks(taskIds: string[]) {
@@ -183,6 +201,7 @@ export const useTaskStore = defineStore("tasks", () => {
     addEvent,
     upsertDiagnostic,
     acknowledgeCompletedTask,
+    completeAndAcknowledgeTask,
     acknowledgeCompletedTasks,
     bumpClock,
     elapsedSeconds,
@@ -192,8 +211,12 @@ export const useTaskStore = defineStore("tasks", () => {
     return task.status === "completed" && acknowledgedCompletedEventKeys.value.has(completedAcknowledgementKey(task));
   }
 
+  function isManuallyClearedTask(task: AgentTask) {
+    return manuallyClearedTaskKeys.value.has(manualClearanceKey(task));
+  }
+
   function filterAcknowledgedCompletedTasks(nextTasks: AgentTask[]) {
-    return nextTasks.filter((task) => !isAcknowledgedCompletedTask(task));
+    return nextTasks.filter((task) => !isAcknowledgedCompletedTask(task) && !isManuallyClearedTask(task));
   }
 
   function maybeNotifyCompletedTask(task: AgentTask, previous?: AgentTask) {
@@ -278,6 +301,10 @@ function completedAcknowledgementKey(task: AgentTask) {
 function completedAt(task: AgentTask) {
   const completedEvent = latestCompletedEvent(task);
   return new Date(completedEvent?.timestamp ?? task.updatedAt).getTime();
+}
+
+function manualClearanceKey(task: AgentTask) {
+  return `${task.id}::${task.updatedAt}`;
 }
 
 function latestCompletedEvent(task: AgentTask) {

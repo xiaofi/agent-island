@@ -107,6 +107,34 @@ describe("IslandApp", () => {
     expect(wrapper.find(".island-trigger").classes()).toContain("island-trigger--stacked");
   });
 
+  it("keeps the expand entry when only multiple alert tasks are visible", async () => {
+    vi.useFakeTimers();
+
+    try {
+      const taskStore = useTaskStore();
+      taskStore.tasks = [completedTask("task-a", "A"), completedTask("task-b", "B")];
+
+      const wrapper = mount(IslandApp);
+      await flushPromises();
+
+      const summaryButton = wrapper.find("button.collapsed-island__meta");
+      expect(summaryButton.exists()).toBe(true);
+      expect(summaryButton.text()).toBe("显示全部任务");
+      expect(wrapper.text()).toContain("2 条任务需要关注");
+      expect(wrapper.text()).not.toContain("暂无任务进行中");
+
+      await summaryButton.trigger("click");
+      await flushPromises();
+      await vi.advanceTimersByTimeAsync(260);
+      await flushPromises();
+
+      expect(wrapper.find(".app-shell").classes()).toContain("app-shell--expanded");
+      expect(wrapper.find("h1").text()).toBe("活跃任务");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("uses a card-like island shell when one alert coexists with running work", async () => {
     const taskStore = useTaskStore();
     taskStore.tasks = [completedTask("task-a", "A"), runningTask("task-b", "B")];
@@ -160,6 +188,36 @@ describe("IslandApp", () => {
     expect(wrapper.find(".island-window").attributes("style")).toContain("--island-opacity: 0.7");
     expect(wrapper.text()).toContain("codex · 已完成");
     expect(wrapper.text()).not.toContain("Sensitive title");
+  });
+
+  it("clears a task from the detail view with the manual delete action", async () => {
+    vi.useFakeTimers();
+
+    try {
+      const taskStore = useTaskStore();
+      taskStore.tasks = [runningTask("task-a", "Stuck task")];
+
+      const wrapper = mount(IslandApp);
+      await flushPromises();
+
+      await wrapper.find("button.collapsed-island__meta").trigger("click");
+      await flushPromises();
+      await vi.advanceTimersByTimeAsync(260);
+      await flushPromises();
+
+      await wrapper.find(".task-card").trigger("click");
+      await flushPromises();
+
+      expect(wrapper.text()).toContain("Stuck task");
+
+      await wrapper.find('button[title="清除任务状态"]').trigger("click");
+      await flushPromises();
+
+      expect(taskStore.tasks).toHaveLength(0);
+      expect(wrapper.text()).toContain("没有发现活跃 agent 会话");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("lays out the expanded panel above the trigger when the native window opens upward", async () => {

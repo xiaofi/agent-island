@@ -46,11 +46,22 @@ const runningSummaryText = computed(() => {
 
   return props.runningCount > 0 ? `${props.runningCount} 个任务进行中` : props.emptyText;
 });
+const stackedSummaryText = computed(() => {
+  if (hasRunningSummary.value) {
+    return runningSummaryText.value;
+  }
+
+  return `${props.alertTasks.length} 条任务需要关注`;
+});
 const primaryRowText = computed(() => {
   const task = primaryAlertTask.value;
   return task ? taskText(task) : runningSummaryText.value;
 });
 const summaryDotStatus = computed(() => {
+  if (isStacked.value && !hasRunningSummary.value && primaryAlertTask.value) {
+    return primaryAlertTask.value.status;
+  }
+
   if (isStacked.value || !primaryAlertTask.value) {
     return props.loading ? "discovering" : "running";
   }
@@ -193,7 +204,7 @@ function taskText(task: AgentTask) {
       <span class="collapsed-island__left" data-tauri-drag-region>
         <StatusDot v-if="primaryAlertTask || runningCount > 0 || loading" :status="summaryDotStatus" />
         <span v-else class="collapsed-island__idle-dot" />
-        <span class="collapsed-island__text" data-tauri-drag-region>{{ isStacked ? runningSummaryText : primaryRowText }}</span>
+        <span class="collapsed-island__text" data-tauri-drag-region>{{ isStacked ? stackedSummaryText : primaryRowText }}</span>
       </span>
       <span class="collapsed-island__actions">
         <button

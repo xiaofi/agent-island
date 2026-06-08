@@ -97,6 +97,27 @@ describe("IslandCollapsed", () => {
     expect(wrapper.emitted("expand")).toHaveLength(1);
   });
 
+  it("keeps a full-list entry when multiple attention rows have no running summary", async () => {
+    const wrapper = mount(IslandCollapsed, {
+      props: {
+        alertTasks: [task("task-cmux", "cmux", "completed"), task("task-agent-island", "agent-island", "waiting-user")],
+        runningCount: 0,
+        loading: false,
+        expanded: false,
+      },
+    });
+
+    const rows = wrapper.findAll(".collapsed-island__row");
+    expect(rows).toHaveLength(3);
+    expect(wrapper.find(".collapsed-island").classes()).toContain("collapsed-island--stacked");
+    expect(rows[2].text()).toContain("2 条任务需要关注");
+    expect(rows[2].text()).toContain("显示全部任务");
+    expect(rows[2].text()).not.toContain("暂无任务进行中");
+
+    await rows[2].trigger("click");
+    expect(wrapper.emitted("expand")).toHaveLength(1);
+  });
+
   it("keeps completion acknowledgement on completed alert rows", async () => {
     const wrapper = mount(IslandCollapsed, {
       props: {

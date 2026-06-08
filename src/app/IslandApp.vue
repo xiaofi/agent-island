@@ -68,6 +68,7 @@ const hasStackedCollapsedRows = computed(
 const showCollapsedSummaryRow = computed(
   () =>
     !hasStackedCollapsedRows.value ||
+    collapsedAlertTasks.value.length > 1 ||
     runningSummaryCount.value > 0 ||
     showLoadingSummary.value ||
     isLayoutExpanded.value ||
@@ -169,6 +170,16 @@ function selectTask(taskId: string) {
   selectedTaskId.value = taskId;
   mode.value = "detail";
   isPanelOpen.value = true;
+}
+
+function completeAndAcknowledgeTask(taskId: string) {
+  if (isIslandTransitioning.value) {
+    return;
+  }
+
+  taskStore.completeAndAcknowledgeTask(taskId);
+  selectedTaskId.value = undefined;
+  mode.value = "list";
 }
 
 function handlePanelAfterEnter() {
@@ -361,6 +372,7 @@ onBeforeUnmount(() => {
             v-else-if="mode === 'detail' && selectedVisibleTask"
             :task="selectedVisibleTask"
             :raw-task="selectedRawTask"
+            @complete-and-acknowledge="completeAndAcknowledgeTask"
             @back="showList"
           />
         </div>

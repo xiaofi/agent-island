@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Copy, ExternalLink, FolderOpen } from "@lucide/vue";
+import { Copy, ExternalLink, FolderOpen, Trash2 } from "@lucide/vue";
 import IconButton from "@/components/primitives/IconButton.vue";
 import StatusDot from "@/components/primitives/StatusDot.vue";
 import { copyTaskSummary, openTask, openWorkdir } from "@/bridge/tauriApi";
@@ -13,6 +13,7 @@ const props = defineProps<{
 
 defineEmits<{
   back: [];
+  completeAndAcknowledge: [taskId: string];
 }>();
 
 const actionTask = () => props.rawTask ?? props.task;
@@ -42,6 +43,9 @@ const actionTask = () => props.rawTask ?? props.task;
         </IconButton>
         <IconButton label="复制摘要" @click="copyTaskSummary(actionTask())">
           <Copy :size="16" />
+        </IconButton>
+        <IconButton label="清除任务状态" @click="$emit('completeAndAcknowledge', actionTask().id)">
+          <Trash2 :size="16" />
         </IconButton>
       </div>
     </section>

@@ -160,4 +160,20 @@ describe("taskStore archived statuses", () => {
     expect(store.displayTasks).toHaveLength(1);
     expect(store.displayTasks[0].status).toBe("thinking");
   });
+
+  it("manually clears a stuck task until a later event updates it", () => {
+    const store = useTaskStore();
+
+    store.upsertTask(task("tool-running"));
+    store.completeAndAcknowledgeTask("codex-task");
+
+    expect(store.tasks).toHaveLength(0);
+
+    store.upsertTask(task("tool-running"));
+    expect(store.tasks).toHaveLength(0);
+
+    store.upsertTask({ ...task("thinking"), updatedAt: "2026-05-30T01:02:00.000Z" });
+    expect(store.tasks).toHaveLength(1);
+    expect(store.displayTasks[0].status).toBe("thinking");
+  });
 });
