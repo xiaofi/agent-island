@@ -578,6 +578,11 @@ run_hook_self_test(source: AgentSource): Promise<HookSelfTestResult>
 
 ## 11. 测试策略
 
+Hook 相关测试必须遵循
+[../development/e2e-testing.md](../development/e2e-testing.md)：使用临时 HOME
+和临时 app support 路径，不直接读写用户真实 Claude Code / Codex 配置；浏览器预览不能作为真实
+Tauri runtime 或 agent hook 送达的证明。
+
 单元测试：
 
 - JSON/TOML 配置合并：保留用户字段、追加缺失 hook、重复安装幂等。

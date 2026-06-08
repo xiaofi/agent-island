@@ -405,13 +405,20 @@ discovering: 1
 - 悬浮岛展开态：下拉任务卡片列表，最多优先展示 5-7 个活跃任务。
 - 悬浮岛详情态：轻量元信息、最近事件、错误/等待原因、操作按钮。
 - 独立设置窗口：隐私模式、路径隐藏、标题隐藏、快捷键、鼠标穿透。
+- 设置窗口还包含悬浮岛透明度、任务完成通知和完成任务自动确认；这些属于本地 UI 偏好，不改变 agent 执行流程。
 - 独立诊断窗口：adapter 来源、权限、候选路径、解析状态。
 
 隐私模式：
 
 - `hideProjectPath`: 路径显示为项目名或完全隐藏。
 - `hideTaskTitle`: 标题显示为 `{sourceLabel} task`。
-- `compactOnly`: 压缩态只显示来源和状态。
+- `compactOnly`: 只影响压缩态，压缩态只显示来源和状态；展开列表继续按 `hideProjectPath` 和 `hideTaskTitle` 处理。
+
+外观与提醒：
+
+- `appearance.islandOpacity`: 固定应用到压缩态悬浮岛和展开任务面板背景，不使用整体 `opacity`，避免文字和状态点变淡。
+- `notifications.enabled`: 控制完成任务系统通知。通知通过 Tauri notification 插件发送，触发前按系统权限检查；同一完成事件只通知一次。
+- `autoAcknowledge.enabled` / `autoAcknowledge.delaySeconds`: 控制完成任务自动确认。到期后复用完成确认逻辑归档 `completed` 任务，不处理 `paused`、`waiting-user` 或 `failed`。
 
 ## 10. 本地配置与权限说明
 
@@ -475,6 +482,11 @@ hook-install-status-updated
 前端启动后先调用 `get_tasks`，再订阅事件。adapter 出错时推送 diagnostic，不抛到 UI 根组件。
 
 ## 12. 测试策略
+
+详细测试分层、macOS E2E 边界和 native smoke 规则见
+[../development/e2e-testing.md](../development/e2e-testing.md)。涉及新行为契约时，先按
+[../development/spec-driven-development.md](../development/spec-driven-development.md)
+在 `docs/specs/` 建立需求、设计、任务和验收映射。
 
 前端：
 

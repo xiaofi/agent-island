@@ -121,6 +121,25 @@ pub struct PrivacySettings {
     pub compact_only: bool,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AppearanceSettings {
+    pub island_opacity: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NotificationSettings {
+    pub enabled: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AutoAcknowledgeSettings {
+    pub enabled: bool,
+    pub delay_seconds: u64,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "kebab-case")]
 pub enum HookOperation {
@@ -167,6 +186,12 @@ pub struct IslandWindowSettings {
 #[serde(rename_all = "camelCase")]
 pub struct AppSettings {
     pub privacy: PrivacySettings,
+    #[serde(default = "default_appearance_settings")]
+    pub appearance: AppearanceSettings,
+    #[serde(default = "default_notification_settings")]
+    pub notifications: NotificationSettings,
+    #[serde(default = "default_auto_acknowledge_settings")]
+    pub auto_acknowledge: AutoAcknowledgeSettings,
     #[serde(default)]
     pub quiet_mode: bool,
     pub mouse_passthrough: bool,
@@ -181,6 +206,9 @@ pub struct AppSettings {
 #[serde(rename_all = "camelCase")]
 pub struct AppSettingsPatch {
     pub privacy: Option<PrivacySettings>,
+    pub appearance: Option<AppearanceSettings>,
+    pub notifications: Option<NotificationSettings>,
+    pub auto_acknowledge: Option<AutoAcknowledgeSettings>,
     pub quiet_mode: Option<bool>,
     pub mouse_passthrough: Option<bool>,
     pub enabled_adapters: Option<Vec<AgentSource>>,
@@ -199,6 +227,9 @@ pub fn default_settings() -> AppSettings {
             hide_task_title: false,
             compact_only: false,
         },
+        appearance: default_appearance_settings(),
+        notifications: default_notification_settings(),
+        auto_acknowledge: default_auto_acknowledge_settings(),
         quiet_mode: false,
         mouse_passthrough: false,
         enabled_adapters: vec![
@@ -208,6 +239,23 @@ pub fn default_settings() -> AppSettings {
         ],
         hook_source: default_hook_source_settings(),
         island_window: IslandWindowSettings::default(),
+    }
+}
+
+pub fn default_appearance_settings() -> AppearanceSettings {
+    AppearanceSettings {
+        island_opacity: 0.92,
+    }
+}
+
+pub fn default_notification_settings() -> NotificationSettings {
+    NotificationSettings { enabled: false }
+}
+
+pub fn default_auto_acknowledge_settings() -> AutoAcknowledgeSettings {
+    AutoAcknowledgeSettings {
+        enabled: false,
+        delay_seconds: 900,
     }
 }
 

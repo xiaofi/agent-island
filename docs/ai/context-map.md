@@ -20,6 +20,8 @@
 | 做 Codex / Claude hook | [../architecture/hook-ingestion.md](../architecture/hook-ingestion.md), [../operations/privacy-and-permissions.md](../operations/privacy-and-permissions.md) | [../architecture/hook-integration-plan.md](../architecture/hook-integration-plan.md), [../decisions/0002-per-source-hook-reception.md](../decisions/0002-per-source-hook-reception.md) |
 | 做 discovery 或 adapter | [../architecture/overview.md](../architecture/overview.md) | `src-tauri/src/adapters/`, `src-tauri/src/services/config_store.rs` |
 | 改 macOS 悬浮窗或全屏 Space 行为 | [../architecture/overview.md](../architecture/overview.md), [../decisions/0003-macos-fullscreen-overlay.md](../decisions/0003-macos-fullscreen-overlay.md) | `src-tauri/src/lib.rs`, `src-tauri/src/services/island_window.rs`, `src-tauri/src/commands/window.rs` |
+| 新增或重塑行为契约 | [../development/spec-driven-development.md](../development/spec-driven-development.md), [../specs/README.md](../specs/README.md) | `docs/specs/<feature>/`, [../product/spec.md](../product/spec.md), [../architecture/technical-plan.md](../architecture/technical-plan.md) |
+| 改测试策略或 E2E | [../development/e2e-testing.md](../development/e2e-testing.md), [../specs/macos-e2e-testing/requirements.md](../specs/macos-e2e-testing/requirements.md) | `package.json`, `src/**/*.test.ts`, `src-tauri/src/**` |
 | 改构建或运行方式 | [../development/getting-started.md](../development/getting-started.md) | `package.json`, `src-tauri/Cargo.toml`, `vite.config.ts` |
 | 改文档结构 | [../research/ai-friendly-documentation.md](../research/ai-friendly-documentation.md), [../decisions/0001-ai-friendly-documentation.md](../decisions/0001-ai-friendly-documentation.md) | [../README.md](../README.md), [../../llms.txt](../../llms.txt) |
 
@@ -32,6 +34,8 @@
 - Discovery 是诊断和降级路径，不依赖私有本地数据结构作为唯一稳定接口。
 - macOS 全屏悬浮优先使用 Accessory 激活策略和窗口 Space 配置；不要把现有 Tauri `NSWindow` 直接改成 `NonactivatingPanel` style。
 - 隐私默认收敛：不采集完整对话、完整工具输入输出或 transcript 内容。
+- 复杂行为先写 feature spec：需求、设计、任务和验收证据要能互相追踪。
+- macOS Tauri 真窗口行为不能用浏览器预览代替；浏览器预览只证明 Vue UI 和 mock bridge。
 
 ## 常用验证
 
@@ -39,4 +43,5 @@
 npm test -- --run
 npm run build
 cd src-tauri && cargo check
+npm run check:all
 ```

@@ -46,6 +46,15 @@ Rust 编译检查：
 cd src-tauri && cargo check
 ```
 
+完整本地检查：
+
+```bash
+npm run check:all
+```
+
+测试策略和 macOS E2E 边界见 [e2e-testing.md](e2e-testing.md)。行为不明确或涉及 hook、隐私、窗口语义时，先按
+[spec-driven-development.md](spec-driven-development.md) 更新 feature spec。
+
 ## 已知工程细节
 
 - `src-tauri/Cargo.toml` 当前通过 `[patch.crates-io]` vendor 了 `dispatch2`，用于规避本地 Tauri 依赖链编译问题。

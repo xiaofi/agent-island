@@ -1,6 +1,7 @@
 import { defineStore } from "pinia";
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import { getTasks, runDiscovery } from "@/bridge/tauriApi";
+import { sendTaskCompletedNotification } from "@/bridge/notifications";
 import { maskTask } from "@/domain/privacy";
 import { isActiveTask, needsAttention, pickPrimaryTask, sortTasksByPriority } from "@/domain/taskPriority";
 import type { AdapterDiagnostic, AgentEvent, AgentSource, AgentTask } from "@/domain/taskTypes";
@@ -15,6 +16,8 @@ export const useTaskStore = defineStore("tasks", () => {
   const loading = ref(false);
   const now = ref(Date.now());
   const acknowledgedCompletedEventKeys = ref(loadAcknowledgedCompletedEventKeys());
+  const notifiedCompletedEventKeys = ref(loadCompletedEventKeys("agent-island-notified-completed-events"));
+  const autoAcknowledgeTimers = new Map<string, number>();
 
   const preferences = usePreferencesStore();
 
@@ -46,6 +49,16 @@ export const useTaskStore = defineStore("tasks", () => {
     return task ? maskTask(task, preferences.privacy) : undefined;
   });
 
+  watch(
+    () => ({
+      enabled: preferences.settings.autoAcknowledge.enabled,
+      delaySeconds: preferences.settings.autoAcknowledge.delaySeconds,
+      completedKeys: completedAlertTasks.value.map(completedAcknowledgementKey).join("|"),
+    }),
+    scheduleAutoAcknowledgeTimers,
+    { immediate: true },
+  );
+
   async function load() {
     loading.value = true;
     try {
@@ -57,7 +70,12 @@ export const useTaskStore = defineStore("tasks", () => {
   }
 
   async function refreshTasks() {
-    tasks.value = filterAcknowledgedCompletedTasks(await getTasks());
+    const nextTasks = filterAcknowledgedCompletedTasks(await getTasks());
+    for (const task of nextTasks) {
+      const previous = tasks.value.find((item) => item.id === task.id);
+      maybeNotifyCompletedTask(task, previous);
+    }
+    tasks.value = nextTasks;
   }
 
   async function refreshDiagnostics(source?: AgentSource) {
@@ -75,14 +93,17 @@ export const useTaskStore = defineStore("tasks", () => {
 
     const index = tasks.value.findIndex((item) => item.id === task.id);
     if (index >= 0) {
+      maybeNotifyCompletedTask(task, tasks.value[index]);
       tasks.value[index] = task;
       return;
     }
 
+    maybeNotifyCompletedTask(task);
     tasks.value.push(task);
   }
 
   function removeTask(taskId: string) {
+    clearAutoAcknowledgeTimerForTask(taskId);
     tasks.value = tasks.value.filter((task) => task.id !== taskId);
   }
 
@@ -123,6 +144,9 @@ export const useTaskStore = defineStore("tasks", () => {
 
     acknowledgedCompletedEventKeys.value = new Set([...acknowledgedCompletedEventKeys.value, ...nextEventKeys]);
     saveAcknowledgedCompletedEventKeys(acknowledgedCompletedEventKeys.value);
+    for (const eventKey of nextEventKeys) {
+      clearAutoAcknowledgeTimer(eventKey);
+    }
     tasks.value = tasks.value.filter((task) => !nextTaskIds.has(task.id));
   }
 
@@ -171,10 +195,93 @@ export const useTaskStore = defineStore("tasks", () => {
   function filterAcknowledgedCompletedTasks(nextTasks: AgentTask[]) {
     return nextTasks.filter((task) => !isAcknowledgedCompletedTask(task));
   }
+
+  function maybeNotifyCompletedTask(task: AgentTask, previous?: AgentTask) {
+    if (!preferences.settings.notifications.enabled || task.status !== "completed" || previous?.status === "completed") {
+      return;
+    }
+
+    const eventKey = completedAcknowledgementKey(task);
+    if (notifiedCompletedEventKeys.value.has(eventKey)) {
+      return;
+    }
+
+    notifiedCompletedEventKeys.value = new Set([...notifiedCompletedEventKeys.value, eventKey]);
+    saveCompletedEventKeys("agent-island-notified-completed-events", notifiedCompletedEventKeys.value);
+    void sendTaskCompletedNotification(maskTask(task, preferences.privacy));
+  }
+
+  function scheduleAutoAcknowledgeTimers() {
+    clearAutoAcknowledgeTimers();
+
+    if (!preferences.settings.autoAcknowledge.enabled) {
+      return;
+    }
+
+    for (const task of completedAlertTasks.value) {
+      const eventKey = completedAcknowledgementKey(task);
+      const dueAt = completedAt(task) + preferences.settings.autoAcknowledge.delaySeconds * 1000;
+      const remainingMs = dueAt - Date.now();
+
+      if (remainingMs <= 0) {
+        acknowledgeCompletedTask(task.id);
+        continue;
+      }
+
+      const timer = window.setTimeout(() => {
+        const currentTask = tasks.value.find((item) => item.id === task.id);
+        if (
+          currentTask?.status === "completed" &&
+          completedAcknowledgementKey(currentTask) === eventKey &&
+          preferences.settings.autoAcknowledge.enabled &&
+          !isAcknowledgedCompletedTask(currentTask)
+        ) {
+          acknowledgeCompletedTask(currentTask.id);
+        }
+      }, remainingMs);
+
+      autoAcknowledgeTimers.set(eventKey, timer);
+    }
+  }
+
+  function clearAutoAcknowledgeTimerForTask(taskId: string) {
+    const task = tasks.value.find((item) => item.id === taskId);
+    if (task?.status === "completed") {
+      clearAutoAcknowledgeTimer(completedAcknowledgementKey(task));
+    }
+  }
+
+  function clearAutoAcknowledgeTimer(eventKey: string) {
+    const timer = autoAcknowledgeTimers.get(eventKey);
+    if (timer === undefined) {
+      return;
+    }
+
+    window.clearTimeout(timer);
+    autoAcknowledgeTimers.delete(eventKey);
+  }
+
+  function clearAutoAcknowledgeTimers() {
+    for (const timer of autoAcknowledgeTimers.values()) {
+      window.clearTimeout(timer);
+    }
+    autoAcknowledgeTimers.clear();
+  }
 });
 
 function completedAcknowledgementKey(task: AgentTask) {
-  const completedEvent = task.events.reduce<AgentEvent | undefined>((latest, event) => {
+  const completedEvent = latestCompletedEvent(task);
+
+  return `${task.id}::${completedEvent?.id ?? "completed"}::${completedEvent?.timestamp ?? task.updatedAt}`;
+}
+
+function completedAt(task: AgentTask) {
+  const completedEvent = latestCompletedEvent(task);
+  return new Date(completedEvent?.timestamp ?? task.updatedAt).getTime();
+}
+
+function latestCompletedEvent(task: AgentTask) {
+  return task.events.reduce<AgentEvent | undefined>((latest, event) => {
     if (event.type !== "session-completed") {
       return latest;
     }
@@ -185,13 +292,15 @@ function completedAcknowledgementKey(task: AgentTask) {
 
     return new Date(event.timestamp).getTime() > new Date(latest.timestamp).getTime() ? event : latest;
   }, undefined);
-
-  return `${task.id}::${completedEvent?.id ?? "completed"}::${completedEvent?.timestamp ?? task.updatedAt}`;
 }
 
 function loadAcknowledgedCompletedEventKeys() {
+  return loadCompletedEventKeys("agent-island-acknowledged-completed-events");
+}
+
+function loadCompletedEventKeys(storageKey: string) {
   try {
-    const saved = window.localStorage.getItem("agent-island-acknowledged-completed-events");
+    const saved = window.localStorage.getItem(storageKey);
     const parsed = saved ? JSON.parse(saved) : [];
     return new Set(typeof parsed === "object" && Array.isArray(parsed) ? parsed.filter((id) => typeof id === "string") : []);
   } catch {
@@ -200,5 +309,9 @@ function loadAcknowledgedCompletedEventKeys() {
 }
 
 function saveAcknowledgedCompletedEventKeys(eventKeys: Set<string>) {
-  window.localStorage.setItem("agent-island-acknowledged-completed-events", JSON.stringify([...eventKeys].slice(-200)));
+  saveCompletedEventKeys("agent-island-acknowledged-completed-events", eventKeys);
+}
+
+function saveCompletedEventKeys(storageKey: string, eventKeys: Set<string>) {
+  window.localStorage.setItem(storageKey, JSON.stringify([...eventKeys].slice(-200)));
 }

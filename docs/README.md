@@ -13,8 +13,10 @@
 ### 开始开发
 
 1. [development/getting-started.md](development/getting-started.md)
-2. [../AGENTS.md](../AGENTS.md)
-3. [ai/context-map.md](ai/context-map.md)
+2. [development/spec-driven-development.md](development/spec-driven-development.md)
+3. [development/e2e-testing.md](development/e2e-testing.md)
+4. [../AGENTS.md](../AGENTS.md)
+5. [ai/context-map.md](ai/context-map.md)
 
 ### 做 hook 相关功能
 
@@ -28,6 +30,13 @@
 1. [architecture/overview.md](architecture/overview.md)
 2. [decisions/0003-macos-fullscreen-overlay.md](decisions/0003-macos-fullscreen-overlay.md)
 
+### 做测试策略或 E2E
+
+1. [development/e2e-testing.md](development/e2e-testing.md)
+2. [development/spec-driven-development.md](development/spec-driven-development.md)
+3. [specs/macos-e2e-testing/requirements.md](specs/macos-e2e-testing/requirements.md)
+4. [decisions/0004-sdd-and-layered-macos-testing.md](decisions/0004-sdd-and-layered-macos-testing.md)
+
 ## 文档分层
 
 | 层级 | 文件 | 用途 |
@@ -36,6 +45,7 @@
 | 地图 | `docs/README.md`、`docs/ai/context-map.md` | 按任务路由到最小必要文档 |
 | 概览 | `docs/product/`、`docs/architecture/` | 稳定结论和架构摘要 |
 | 操作 | `docs/development/`、`docs/operations/` | 开发、测试、权限、隐私、发布等可执行流程 |
+| Feature specs | `docs/specs/` | SDD 需求、设计、任务和验收映射 |
 | 详细方案 | `docs/product/spec.md`、`docs/architecture/technical-plan.md`、`docs/architecture/hook-integration-plan.md` | 长文档，保留完整推理和方案 |
 | 决策记录 | `docs/decisions/` | 架构级取舍和变更背景 |
 | 调研 | `docs/research/` | 外部资料、引用和采用原则 |
@@ -47,3 +57,4 @@
 - AI 入口文件只放任务路由、约束和关键命令。
 - 新架构决策写 ADR，不把背景散落在实现文件里。
 - 涉及隐私、hook、用户配置修改的内容必须同时更新操作文档和 AI 上下文地图。
+- 涉及产品契约、hook、隐私或 macOS 窗口语义的改动，先按 SDD 流程更新 `docs/specs/`。

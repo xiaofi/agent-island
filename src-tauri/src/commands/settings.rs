@@ -16,6 +16,18 @@ pub async fn update_settings(patch: AppSettingsPatch) -> Result<AppSettings, Str
         settings.privacy = privacy;
     }
 
+    if let Some(appearance) = patch.appearance {
+        settings.appearance = appearance;
+    }
+
+    if let Some(notifications) = patch.notifications {
+        settings.notifications = notifications;
+    }
+
+    if let Some(auto_acknowledge) = patch.auto_acknowledge {
+        settings.auto_acknowledge = auto_acknowledge;
+    }
+
     if let Some(quiet_mode) = patch.quiet_mode {
         settings.quiet_mode = quiet_mode;
     }

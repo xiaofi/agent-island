@@ -16,6 +16,16 @@ vi.mock("@/bridge/tauriApi", () => ({
       hideTaskTitle: false,
       compactOnly: false,
     },
+    appearance: {
+      islandOpacity: 0.92,
+    },
+    notifications: {
+      enabled: false,
+    },
+    autoAcknowledge: {
+      enabled: false,
+      delaySeconds: 900,
+    },
     quietMode: false,
     mousePassthrough: false,
     enabledAdapters: ["manual", "codex", "claude-code"],
@@ -134,6 +144,22 @@ describe("IslandApp", () => {
     expect(wrapper.text()).not.toContain("任务进行中");
     expect(wrapper.text()).not.toContain("正在发现本地 agent");
     expect(wrapper.find(".island-trigger").classes()).not.toContain("island-trigger--stacked");
+  });
+
+  it("applies the configured island opacity and compact privacy text", async () => {
+    const preferencesStore = usePreferencesStore();
+    preferencesStore.settings.appearance.islandOpacity = 0.7;
+    preferencesStore.settings.privacy.compactOnly = true;
+
+    const taskStore = useTaskStore();
+    taskStore.tasks = [completedTask("task-a", "Sensitive title")];
+
+    const wrapper = mount(IslandApp);
+    await flushPromises();
+
+    expect(wrapper.find(".island-window").attributes("style")).toContain("--island-opacity: 0.7");
+    expect(wrapper.text()).toContain("codex · 已完成");
+    expect(wrapper.text()).not.toContain("Sensitive title");
   });
 
   it("lays out the expanded panel above the trigger when the native window opens upward", async () => {

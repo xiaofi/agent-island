@@ -15,6 +15,16 @@ const baseSettings: AppSettings = {
     hideTaskTitle: false,
     compactOnly: false,
   },
+  appearance: {
+    islandOpacity: 0.92,
+  },
+  notifications: {
+    enabled: false,
+  },
+  autoAcknowledge: {
+    enabled: false,
+    delaySeconds: 900,
+  },
   quietMode: false,
   mousePassthrough: false,
   enabledAdapters: ["manual", "codex", "claude-code"],
@@ -109,5 +119,25 @@ describe("SettingsPanel hook source controls", () => {
 
     expect(wrapper.text()).toContain("安静模式");
     expect(wrapper.findAll("input[type='checkbox']").some((input) => (input.element as HTMLInputElement).checked)).toBe(true);
+  });
+
+  it("shows appearance, notification, and auto acknowledgement settings", async () => {
+    const settings = structuredClone(baseSettings);
+    settings.appearance.islandOpacity = 0.7;
+    settings.notifications.enabled = true;
+    settings.autoAcknowledge.enabled = true;
+    settings.autoAcknowledge.delaySeconds = 1800;
+
+    const wrapper = mountPanel(settings, [diagnostic("codex", "unavailable"), diagnostic("claude-code", "unavailable")]);
+
+    expect(wrapper.text()).toContain("悬浮岛透明度");
+    expect(wrapper.text()).toContain("70%");
+    expect(wrapper.text()).toContain("任务完成通知");
+    expect(wrapper.text()).toContain("自动确认完成任务");
+
+    await wrapper.find("select").setValue("300");
+    await nextTick();
+
+    expect(usePreferencesStore().settings.autoAcknowledge.delaySeconds).toBe(300);
   });
 });

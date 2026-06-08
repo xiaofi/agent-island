@@ -44,7 +44,7 @@ export async function getSettings(): Promise<AppSettings> {
 
   const saved = window.localStorage.getItem("agent-island-settings");
   if (saved) {
-    mockSettings = { ...mockSettings, ...JSON.parse(saved) };
+    mockSettings = mergeSettings(JSON.parse(saved));
   }
   return structuredClone(mockSettings);
 }
@@ -61,6 +61,18 @@ export async function updateSettings(patch: Partial<AppSettings>): Promise<AppSe
       ...mockSettings.privacy,
       ...patch.privacy,
     },
+    appearance: {
+      ...mockSettings.appearance,
+      ...patch.appearance,
+    },
+    notifications: {
+      ...mockSettings.notifications,
+      ...patch.notifications,
+    },
+    autoAcknowledge: {
+      ...mockSettings.autoAcknowledge,
+      ...patch.autoAcknowledge,
+    },
     hookSource: {
       ...mockSettings.hookSource,
       ...patch.hookSource,
@@ -72,6 +84,41 @@ export async function updateSettings(patch: Partial<AppSettings>): Promise<AppSe
   };
   window.localStorage.setItem("agent-island-settings", JSON.stringify(mockSettings));
   return structuredClone(mockSettings);
+}
+
+function mergeSettings(saved: Partial<AppSettings>): AppSettings {
+  return {
+    ...mockSettings,
+    ...saved,
+    privacy: {
+      ...mockSettings.privacy,
+      ...saved.privacy,
+    },
+    appearance: {
+      ...mockSettings.appearance,
+      ...saved.appearance,
+    },
+    notifications: {
+      ...mockSettings.notifications,
+      ...saved.notifications,
+    },
+    autoAcknowledge: {
+      ...mockSettings.autoAcknowledge,
+      ...saved.autoAcknowledge,
+    },
+    hookSource: {
+      ...mockSettings.hookSource,
+      ...saved.hookSource,
+      lastErrors: {
+        ...mockSettings.hookSource.lastErrors,
+        ...saved.hookSource?.lastErrors,
+      },
+    },
+    islandWindow: {
+      ...mockSettings.islandWindow,
+      ...saved.islandWindow,
+    },
+  };
 }
 
 export async function setHookSourceEnabled(

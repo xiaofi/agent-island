@@ -133,7 +133,8 @@ function compactTaskTitle(title: string, source: string) {
 
 function taskText(task: AgentTask) {
   const source = collapsedSourceLabel(task.source);
-  return `${source} · ${statusLabel(task.status)} · ${compactTaskTitle(task.title, source)}`;
+  const title = compactTaskTitle(task.title, source);
+  return title ? `${source} · ${statusLabel(task.status)} · ${title}` : `${source} · ${statusLabel(task.status)}`;
 }
 </script>
 

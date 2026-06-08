@@ -34,6 +34,14 @@ Agent Island 是一个本地桌面悬浮状态层，用于让开发者快速知�
 
 安静模式开启后，悬浮岛和展开列表只显示 `waiting-user`、`failed`、`completed` 任务，隐藏普通 `discovering`、`running`、`thinking`、`tool-running` 状态。
 
+压缩态隐私模式开启后，压缩态只显示来源和状态；展开列表仍按“隐藏项目路径”和“隐藏任务标题”单独设置展示。
+
+用户可以固定悬浮岛透明度，该透明度只作用于压缩态和展开面板背景，不降低文字、按钮和状态点本身的不透明度。
+
+任务完成通知默认关闭。用户打开后，任务进入 `completed` 时发送一条系统通知并使用系统通知声音；同一完成事件只通知一次，通知内容遵循标题隐私设置。
+
+自动确认开启后，未手动确认的 `completed` 任务会在 5 分钟、15 分钟、30 分钟或 1 小时后自动归档；`paused`、`waiting-user` 和 `failed` 不会被自动确认。
+
 macOS 原生窗口策略继续遵循 ADR 0003，不把现有 Tauri `NSWindow` 改成 `NonactivatingPanel` style。
 
 任务标题优先来自对应 agent 的本机会话历史标题；Codex 通过 session id 查本地索引，Claude Code 可通过本机 transcript 指针读取 `aiTitle`、标题或 `summary` 字段。如果无法查到标题，则回退为当前工作目录名。

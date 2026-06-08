@@ -86,6 +86,19 @@ export interface PrivacySettings {
   compactOnly: boolean;
 }
 
+export interface AppearanceSettings {
+  islandOpacity: number;
+}
+
+export interface NotificationSettings {
+  enabled: boolean;
+}
+
+export interface AutoAcknowledgeSettings {
+  enabled: boolean;
+  delaySeconds: number;
+}
+
 export type HookOperation = "install" | "uninstall" | "repair" | "self-test";
 
 export interface HookOperationError {
@@ -114,6 +127,9 @@ export interface IslandWindowSettings {
 
 export interface AppSettings {
   privacy: PrivacySettings;
+  appearance: AppearanceSettings;
+  notifications: NotificationSettings;
+  autoAcknowledge: AutoAcknowledgeSettings;
   quietMode: boolean;
   mousePassthrough: boolean;
   enabledAdapters: AgentSource[];

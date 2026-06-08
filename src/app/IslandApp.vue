@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, watch, type CSSProperties } from "vue";
 import { Bug, ChevronLeft, Settings } from "@lucide/vue";
 import IslandCollapsed from "@/components/island/IslandCollapsed.vue";
 import IslandExpanded from "@/components/island/IslandExpanded.vue";
@@ -46,8 +46,12 @@ const selectedVisibleTask = computed(() => {
   return task ? maskTask(task, preferencesStore.privacy) : undefined;
 });
 const collapsedAlertTasks = computed(() =>
-  taskStore.displayTasks.filter(needsAttention).map((task) => maskTask(task, preferencesStore.privacy)),
+  taskStore.displayTasks.filter(needsAttention).map((task) => maskTask(task, preferencesStore.privacy, { compact: true })),
 );
+const islandStyle = computed<CSSProperties>(() => ({
+  "--collapsed-height": `${collapsedHeight.value}px`,
+  "--island-opacity": String(preferencesStore.settings.appearance.islandOpacity),
+}));
 const runningSummaryCount = computed(() =>
   preferencesStore.settings.quietMode ? 0 : taskStore.tasks.filter(isRunningSummaryTask).length,
 );
@@ -308,7 +312,7 @@ onBeforeUnmount(() => {
       'app-shell--expand-up': isLayoutExpanded && panelDirection === 'up',
     }"
   >
-    <section class="island-window" :style="{ '--collapsed-height': `${collapsedHeight}px` }">
+    <section class="island-window" :style="islandStyle">
       <div class="island-trigger" :class="{ 'island-trigger--stacked': hasStackedCollapsedRows }">
         <IslandCollapsed
           :alert-tasks="collapsedAlertTasks"

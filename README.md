@@ -25,6 +25,7 @@ npm run tauri -- dev
 ```bash
 npm test -- --run
 cd src-tauri && cargo check
+npm run check:all
 ```
 
 ## 文档入口
@@ -34,6 +35,9 @@ cd src-tauri && cargo check
 - [docs/product/spec.md](docs/product/spec.md)：产品 spec 详细版本。
 - [docs/architecture/technical-plan.md](docs/architecture/technical-plan.md)：技术方案详细版本。
 - [docs/architecture/hook-integration-plan.md](docs/architecture/hook-integration-plan.md)：Claude Code / Codex hook 接入详细方案。
+- [docs/development/spec-driven-development.md](docs/development/spec-driven-development.md)：SDD 开发流程。
+- [docs/development/e2e-testing.md](docs/development/e2e-testing.md)：E2E 和 Mac 应用测试策略。
+- [docs/specs/README.md](docs/specs/README.md)：feature spec 目录和模板。
 
 ## AI Agent 入口
 

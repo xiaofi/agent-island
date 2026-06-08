@@ -14,12 +14,20 @@ const { settings } = storeToRefs(preferencesStore);
 type HookUiSource = Extract<AgentSource, "codex" | "claude-code">;
 
 const hookSources: HookUiSource[] = ["claude-code", "codex"];
+const opacityOptions = [0.55, 0.7, 0.85, 0.92, 1];
+const autoAcknowledgeOptions = [
+  { label: "5 分钟", value: 300 },
+  { label: "15 分钟", value: 900 },
+  { label: "30 分钟", value: 1800 },
+  { label: "1 小时", value: 3600 },
+];
 const busySource = ref<HookUiSource>();
 const pendingSource = ref<HookUiSource>();
 
 const diagnosticsBySource = computed(() => {
   return Object.fromEntries(taskStore.diagnostics.map((diagnostic) => [diagnostic.source, diagnostic]));
 });
+const opacityPercent = computed(() => Math.round(settings.value.appearance.islandOpacity * 100));
 
 onMounted(() => {
   if (!taskStore.diagnostics.length) {
@@ -122,6 +130,11 @@ async function selfTest(source: HookUiSource) {
     busySource.value = undefined;
   }
 }
+
+function handleOpacityChange(event: Event) {
+  const value = Number((event.target as HTMLInputElement).value);
+  void preferencesStore.setIslandOpacity(value);
+}
 </script>
 
 <template>
@@ -153,7 +166,7 @@ async function selfTest(source: HookUiSource) {
     <label class="toggle-row">
       <span>
         <strong>压缩态隐私模式</strong>
-        <small>压缩态只保留来源、状态和任务数量。</small>
+        <small>压缩态只保留来源、状态和任务数量；展开列表仍按路径和标题设置展示。</small>
       </span>
       <input
         type="checkbox"
@@ -165,7 +178,7 @@ async function selfTest(source: HookUiSource) {
     <label class="toggle-row">
       <span>
         <strong>鼠标穿透</strong>
-        <small>默认关闭；MVP 仅保留 Tauri command 接口。</small>
+        <small>开启后悬浮岛不接收鼠标事件，适合只通过快捷方式或菜单控制时使用。</small>
       </span>
       <input
         type="checkbox"
@@ -185,6 +198,85 @@ async function selfTest(source: HookUiSource) {
         @change="preferencesStore.setQuietMode(($event.target as HTMLInputElement).checked)"
       />
     </label>
+
+    <section class="settings-section">
+      <header class="settings-section__header">
+        <div>
+          <strong>外观与提醒</strong>
+          <small>控制悬浮岛可见度、完成通知和完成提醒保留时间。</small>
+        </div>
+      </header>
+
+      <label class="setting-field">
+        <span>
+          <strong>悬浮岛透明度</strong>
+          <small>固定应用到压缩态和下拉任务面板。</small>
+        </span>
+        <div class="range-control">
+          <input
+            type="range"
+            min="0.55"
+            max="1"
+            step="0.01"
+            :value="settings.appearance.islandOpacity"
+            @input="handleOpacityChange"
+          />
+          <output>{{ opacityPercent }}%</output>
+        </div>
+      </label>
+
+      <div class="segmented-control" aria-label="透明度预设">
+        <button
+          v-for="option in opacityOptions"
+          :key="option"
+          type="button"
+          :class="{ 'segmented-control__button--active': settings.appearance.islandOpacity === option }"
+          @click="preferencesStore.setIslandOpacity(option)"
+        >
+          {{ Math.round(option * 100) }}%
+        </button>
+      </div>
+
+      <label class="toggle-row">
+        <span>
+          <strong>任务完成通知</strong>
+          <small>任务完成后发送系统通知，并使用系统通知声音。</small>
+        </span>
+        <input
+          type="checkbox"
+          :checked="settings.notifications.enabled"
+          @change="preferencesStore.setNotificationsEnabled(($event.target as HTMLInputElement).checked)"
+        />
+      </label>
+
+      <label class="toggle-row">
+        <span>
+          <strong>自动确认完成任务</strong>
+          <small>完成任务在指定时间后自动归档，不一直占用悬浮岛。</small>
+        </span>
+        <input
+          type="checkbox"
+          :checked="settings.autoAcknowledge.enabled"
+          @change="preferencesStore.setAutoAcknowledgeEnabled(($event.target as HTMLInputElement).checked)"
+        />
+      </label>
+
+      <label class="setting-field">
+        <span>
+          <strong>自动确认时间</strong>
+          <small>仅在自动确认开启后生效。</small>
+        </span>
+        <select
+          :value="settings.autoAcknowledge.delaySeconds"
+          :disabled="!settings.autoAcknowledge.enabled"
+          @change="preferencesStore.setAutoAcknowledgeDelay(Number(($event.target as HTMLSelectElement).value))"
+        >
+          <option v-for="option in autoAcknowledgeOptions" :key="option.value" :value="option.value">
+            {{ option.label }}
+          </option>
+        </select>
+      </label>
+    </section>
 
     <section class="settings-section">
       <header class="settings-section__header">

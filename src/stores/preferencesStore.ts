@@ -1,6 +1,7 @@
 import { defineStore } from "pinia";
 import { computed, ref } from "vue";
 import type { AgentSource, AppSettings, HookOperation } from "@/domain/taskTypes";
+import { ensureNotificationsPermission } from "@/bridge/notifications";
 import {
   getSettings,
   retryHookSourceOperation,
@@ -16,6 +17,16 @@ export const usePreferencesStore = defineStore("preferences", () => {
       hideProjectPath: false,
       hideTaskTitle: false,
       compactOnly: false,
+    },
+    appearance: {
+      islandOpacity: 0.92,
+    },
+    notifications: {
+      enabled: false,
+    },
+    autoAcknowledge: {
+      enabled: false,
+      delaySeconds: 900,
     },
     quietMode: false,
     mousePassthrough: false,
@@ -63,6 +74,43 @@ export const usePreferencesStore = defineStore("preferences", () => {
     settings.value = await updateSettings({ quietMode: enabled });
   }
 
+  async function setIslandOpacity(islandOpacity: number) {
+    await patch({
+      appearance: {
+        ...settings.value.appearance,
+        islandOpacity,
+      },
+    });
+  }
+
+  async function setNotificationsEnabled(enabled: boolean) {
+    const nextEnabled = enabled ? await ensureNotificationsPermission() : false;
+    await patch({
+      notifications: {
+        ...settings.value.notifications,
+        enabled: nextEnabled,
+      },
+    });
+  }
+
+  async function setAutoAcknowledgeEnabled(enabled: boolean) {
+    await patch({
+      autoAcknowledge: {
+        ...settings.value.autoAcknowledge,
+        enabled,
+      },
+    });
+  }
+
+  async function setAutoAcknowledgeDelay(delaySeconds: number) {
+    await patch({
+      autoAcknowledge: {
+        ...settings.value.autoAcknowledge,
+        delaySeconds,
+      },
+    });
+  }
+
   async function setHookSource(source: Extract<AgentSource, "codex" | "claude-code">, enabled: boolean) {
     settings.value = await setHookSourceEnabled(source, enabled);
   }
@@ -88,6 +136,10 @@ export const usePreferencesStore = defineStore("preferences", () => {
     patch,
     setPrivacy,
     setQuietMode,
+    setIslandOpacity,
+    setNotificationsEnabled,
+    setAutoAcknowledgeEnabled,
+    setAutoAcknowledgeDelay,
     setMousePassthroughPreference,
     setHookSource,
     retryHookSource,

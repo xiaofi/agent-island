@@ -95,6 +95,16 @@ export const mockSettings: AppSettings = {
     hideTaskTitle: false,
     compactOnly: false,
   },
+  appearance: {
+    islandOpacity: 0.92,
+  },
+  notifications: {
+    enabled: false,
+  },
+  autoAcknowledge: {
+    enabled: false,
+    delaySeconds: 900,
+  },
   quietMode: false,
   mousePassthrough: false,
   enabledAdapters: ["manual", "codex", "claude-code"],

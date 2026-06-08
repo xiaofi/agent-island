@@ -23,11 +23,15 @@ Agent Island is a local status layer. It discovers, normalizes, displays, and li
 - [Architecture Overview](docs/architecture/overview.md): system modules and data flow.
 - [Hook Ingestion Summary](docs/architecture/hook-ingestion.md): short hook architecture summary.
 - [Getting Started](docs/development/getting-started.md): install, run, test, build.
+- [Spec-Driven Development](docs/development/spec-driven-development.md): when and how to create feature specs before implementation.
+- [E2E and Mac App Testing](docs/development/e2e-testing.md): layered test strategy and native macOS smoke boundary.
 - [Privacy and Permissions](docs/operations/privacy-and-permissions.md): privacy model and hook safety constraints.
 - [AI-Friendly Documentation Research](docs/research/ai-friendly-documentation.md): external research and adopted principles.
+- [Feature Specs](docs/specs/README.md): SDD requirements, design, tasks, and acceptance folders.
 - [ADR 0001](docs/decisions/0001-ai-friendly-documentation.md): decision record for the documentation architecture.
 - [ADR 0002](docs/decisions/0002-per-source-hook-reception.md): Claude Code and Codex hook integration is controlled separately per source, and disabling a source uninstalls Agent Island's own hook command.
 - [ADR 0003](docs/decisions/0003-macos-fullscreen-overlay.md): macOS full-screen overlay uses Accessory activation policy and keeps native `NSPanel` as the fallback path.
+- [ADR 0004](docs/decisions/0004-sdd-and-layered-macos-testing.md): behavior-changing work uses SDD and macOS testing is layered instead of relying on one E2E path.
 
 ## Current Implementation Notes
 
@@ -39,6 +43,8 @@ Agent Island is a local status layer. It discovers, normalizes, displays, and li
 - macOS full-screen overlay behavior is configured in `src-tauri/src/lib.rs` and `src-tauri/src/services/island_window.rs`.
 - Tauri task loading uses config-file discovery as a fallback and does not show mock tasks; browser preview still uses mock tasks.
 - Detailed real state ingestion is planned through official hooks and remains source-gated by user settings.
+- Behavior-changing work should use `docs/specs/` to map requirements to tests or explicit native macOS smoke evidence.
+- Browser-preview screenshots are UI evidence only; they do not prove native Tauri window behavior on macOS.
 
 ## Safety Constraints
 
