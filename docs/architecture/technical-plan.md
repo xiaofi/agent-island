@@ -405,7 +405,7 @@ discovering: 1
 - 悬浮岛展开态：下拉任务卡片列表，最多优先展示 5-7 个活跃任务。
 - 悬浮岛详情态：轻量元信息、最近事件、错误/等待原因、操作按钮。
 - 独立设置窗口：隐私模式、路径隐藏、标题隐藏、快捷键、鼠标穿透。
-- 设置窗口还包含悬浮岛透明度、任务完成通知和完成任务自动确认；这些属于本地 UI 偏好，不改变 agent 执行流程。
+- 设置窗口还包含悬浮岛透明度、关键状态通知和完成任务自动确认；这些属于本地 UI 偏好，不改变 agent 执行流程。
 - 独立诊断窗口：adapter 来源、权限、候选路径、解析状态。
 
 隐私模式：
@@ -417,7 +417,7 @@ discovering: 1
 外观与提醒：
 
 - `appearance.islandOpacity`: 固定应用到压缩态悬浮岛和展开任务面板背景，不使用整体 `opacity`，避免文字和状态点变淡。
-- `notifications.enabled`: 控制完成任务系统通知。通知通过 Tauri notification 插件发送，触发前按系统权限检查；同一完成事件只通知一次。
+- `notifications.enabled`: 控制 `waiting-user`、`failed`、`completed` 关键状态系统通知。用户开启时请求系统权限，同一关键状态事件只通知一次，启动或重新加载已有任务时不回放历史通知。
 - `autoAcknowledge.enabled` / `autoAcknowledge.delaySeconds`: 控制完成任务自动确认。到期后复用完成确认逻辑归档 `completed` 任务，不处理 `paused`、`waiting-user` 或 `failed`。
 
 ## 10. 本地配置与权限说明

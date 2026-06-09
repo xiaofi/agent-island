@@ -203,7 +203,7 @@ function handleOpacityChange(event: Event) {
       <header class="settings-section__header">
         <div>
           <strong>外观与提醒</strong>
-          <small>控制悬浮岛可见度、完成通知和完成提醒保留时间。</small>
+          <small>控制悬浮岛可见度、关键状态通知和完成提醒保留时间。</small>
         </div>
       </header>
 
@@ -239,8 +239,8 @@ function handleOpacityChange(event: Event) {
 
       <label class="toggle-row">
         <span>
-          <strong>任务完成通知</strong>
-          <small>任务完成后发送系统通知，并使用系统通知声音。</small>
+          <strong>关键状态通知</strong>
+          <small>任务等待处理、失败或完成时发送系统通知。</small>
         </span>
         <input
           type="checkbox"

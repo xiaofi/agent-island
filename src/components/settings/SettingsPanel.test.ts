@@ -132,7 +132,7 @@ describe("SettingsPanel hook source controls", () => {
 
     expect(wrapper.text()).toContain("悬浮岛透明度");
     expect(wrapper.text()).toContain("70%");
-    expect(wrapper.text()).toContain("任务完成通知");
+    expect(wrapper.text()).toContain("关键状态通知");
     expect(wrapper.text()).toContain("自动确认完成任务");
 
     await wrapper.find("select").setValue("300");
