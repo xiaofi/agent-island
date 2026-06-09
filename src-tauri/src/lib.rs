@@ -20,6 +20,9 @@ pub fn run() {
                     .map_err(|error| std::io::Error::new(std::io::ErrorKind::Other, error))?;
             }
 
+            let watcher_handle = services::task_watcher::start_task_watcher(app.handle());
+            app.manage(watcher_handle);
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
