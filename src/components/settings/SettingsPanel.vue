@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import { storeToRefs } from "pinia";
-import { RefreshCw } from "@lucide/vue";
+import { Bell, RefreshCw } from "@lucide/vue";
+import { sendTestNotification, type TestNotificationResult } from "@/bridge/notifications";
 import { sourceLabel } from "@/domain/privacy";
 import type { AgentSource, HookOperationError, NotificationSound } from "@/domain/taskTypes";
 import { usePreferencesStore } from "@/stores/preferencesStore";
@@ -34,11 +35,26 @@ const notificationSoundOptions: { label: string; value: NotificationSound }[] = 
 ];
 const busySource = ref<HookUiSource>();
 const pendingSource = ref<HookUiSource>();
+const notificationTestStatus = ref<TestNotificationResult | "idle" | "sending">("idle");
 
 const diagnosticsBySource = computed(() => {
   return Object.fromEntries(taskStore.diagnostics.map((diagnostic) => [diagnostic.source, diagnostic]));
 });
 const opacityPercent = computed(() => Math.round(settings.value.appearance.islandOpacity * 100));
+const notificationTestMessage = computed(() => {
+  switch (notificationTestStatus.value) {
+    case "sending":
+      return "发送中";
+    case "sent":
+      return "已发送测试通知";
+    case "permission-denied":
+      return "系统通知权限未授予";
+    case "failed":
+      return "测试通知发送失败";
+    default:
+      return "";
+  }
+});
 
 onMounted(() => {
   if (!taskStore.diagnostics.length) {
@@ -150,6 +166,11 @@ function handleOpacityChange(event: Event) {
 function handleNotificationSoundChange(event: Event) {
   const value = (event.target as HTMLSelectElement).value as NotificationSound;
   void preferencesStore.setNotificationSound(value);
+}
+
+async function handleSendTestNotification() {
+  notificationTestStatus.value = "sending";
+  notificationTestStatus.value = await sendTestNotification(settings.value.notifications.sound);
 }
 </script>
 
@@ -288,6 +309,27 @@ function handleNotificationSoundChange(event: Event) {
           </option>
         </select>
       </label>
+
+      <div class="setting-field">
+        <span>
+          <strong>测试通知</strong>
+          <small>按当前通知声音发送一条系统通知。</small>
+        </span>
+        <div class="notification-test-control">
+          <button
+            class="secondary-button"
+            type="button"
+            :disabled="notificationTestStatus === 'sending'"
+            @click="handleSendTestNotification"
+          >
+            <Bell :size="14" />
+            发送测试通知
+          </button>
+          <small v-if="notificationTestMessage" class="notification-test-control__status" role="status">
+            {{ notificationTestMessage }}
+          </small>
+        </div>
+      </div>
 
       <label class="toggle-row">
         <span>

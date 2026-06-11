@@ -5,6 +5,7 @@ import { createPinia, setActivePinia } from "pinia";
 import { nextTick } from "vue";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import SettingsPanel from "@/components/settings/SettingsPanel.vue";
+import * as notificationsBridge from "@/bridge/notifications";
 import type { AdapterDiagnostic, AppSettings } from "@/domain/taskTypes";
 import { usePreferencesStore } from "@/stores/preferencesStore";
 import { useTaskStore } from "@/stores/taskStore";
@@ -139,6 +140,7 @@ describe("SettingsPanel hook source controls", () => {
     expect(wrapper.text()).toContain("70%");
     expect(wrapper.text()).toContain("关键状态通知");
     expect(wrapper.text()).toContain("通知声音");
+    expect(wrapper.text()).toContain("测试通知");
     expect(wrapper.text()).toContain("自动确认完成任务");
 
     const autoAckSelect = wrapper.findAll("select").find((select) => select.text().includes("15 分钟"));
@@ -154,5 +156,14 @@ describe("SettingsPanel hook source controls", () => {
     await nextTick();
 
     expect(usePreferencesStore().settings.notifications.sound).toBe("Hero");
+
+    const sendTestNotification = vi.spyOn(notificationsBridge, "sendTestNotification").mockResolvedValue("sent");
+    const testButton = wrapper.findAll("button").find((button) => button.text() === "发送测试通知");
+    expect(testButton).toBeTruthy();
+    await testButton!.trigger("click");
+    await nextTick();
+
+    expect(sendTestNotification).toHaveBeenCalledWith("Hero");
+    expect(wrapper.text()).toContain("已发送测试通知");
   });
 });

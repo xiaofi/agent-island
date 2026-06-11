@@ -771,6 +771,22 @@ button {
   text-align: right;
 }
 
+.notification-test-control {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.notification-test-control__status {
+  color: var(--color-muted);
+  font-size: 11px;
+  line-height: 1.35;
+  text-align: right;
+}
+
 .segmented-control {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
