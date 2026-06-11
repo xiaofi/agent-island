@@ -107,6 +107,7 @@ export const mockSettings: AppSettings = {
   },
   quietMode: false,
   mousePassthrough: false,
+  showInDock: false,
   enabledAdapters: ["manual", "codex", "claude-code"],
   hookSource: {
     codex: false,

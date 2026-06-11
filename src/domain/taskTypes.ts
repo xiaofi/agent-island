@@ -132,6 +132,7 @@ export interface AppSettings {
   autoAcknowledge: AutoAcknowledgeSettings;
   quietMode: boolean;
   mousePassthrough: boolean;
+  showInDock: boolean;
   enabledAdapters: AgentSource[];
   hookSource: HookSourceSettings;
   islandWindow: IslandWindowSettings;

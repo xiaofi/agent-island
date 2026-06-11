@@ -195,6 +195,8 @@ pub struct AppSettings {
     #[serde(default)]
     pub quiet_mode: bool,
     pub mouse_passthrough: bool,
+    #[serde(default)]
+    pub show_in_dock: bool,
     pub enabled_adapters: Vec<AgentSource>,
     #[serde(default = "default_hook_source_settings")]
     pub hook_source: HookSourceSettings,
@@ -211,6 +213,7 @@ pub struct AppSettingsPatch {
     pub auto_acknowledge: Option<AutoAcknowledgeSettings>,
     pub quiet_mode: Option<bool>,
     pub mouse_passthrough: Option<bool>,
+    pub show_in_dock: Option<bool>,
     pub enabled_adapters: Option<Vec<AgentSource>>,
     pub hook_source: Option<HookSourceSettings>,
     pub island_window: Option<IslandWindowSettings>,
@@ -232,6 +235,7 @@ pub fn default_settings() -> AppSettings {
         auto_acknowledge: default_auto_acknowledge_settings(),
         quiet_mode: false,
         mouse_passthrough: false,
+        show_in_dock: false,
         enabled_adapters: vec![
             AgentSource::Manual,
             AgentSource::Codex,

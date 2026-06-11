@@ -81,6 +81,10 @@ export async function updateSettings(patch: Partial<AppSettings>): Promise<AppSe
         ...patch.hookSource?.lastErrors,
       },
     },
+    islandWindow: {
+      ...mockSettings.islandWindow,
+      ...patch.islandWindow,
+    },
   };
   window.localStorage.setItem("agent-island-settings", JSON.stringify(mockSettings));
   return structuredClone(mockSettings);
@@ -199,6 +203,12 @@ export async function copyTaskSummary(task: AgentTask): Promise<void> {
 export async function setMousePassthrough(enabled: boolean): Promise<void> {
   if (isTauri()) {
     return invoke("set_mouse_passthrough", { enabled });
+  }
+}
+
+export async function setDockVisibility(visible: boolean): Promise<void> {
+  if (isTauri()) {
+    return invoke("set_dock_visibility", { visible });
   }
 }
 

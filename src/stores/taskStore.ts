@@ -1,7 +1,6 @@
 import { defineStore } from "pinia";
 import { computed, ref, watch } from "vue";
 import { getTasks, runDiscovery } from "@/bridge/tauriApi";
-import { sendTaskStatusNotification } from "@/bridge/notifications";
 import { maskTask } from "@/domain/privacy";
 import { isActiveTask, needsAttention, pickPrimaryTask, sortTasksByPriority } from "@/domain/taskPriority";
 import type { AdapterDiagnostic, AgentEvent, AgentEventType, AgentSource, AgentTask } from "@/domain/taskTypes";
@@ -9,12 +8,6 @@ import { usePreferencesStore } from "@/stores/preferencesStore";
 
 const quietModeStatuses = new Set<AgentTask["status"]>(["waiting-user", "failed", "completed"]);
 const archivedStatuses = new Set<AgentTask["status"]>(["paused"]);
-const notificationStatuses = new Set<AgentTask["status"]>(["waiting-user", "failed", "completed"]);
-const notificationEventTypes: Partial<Record<AgentTask["status"], AgentEventType>> = {
-  "waiting-user": "waiting-for-user",
-  failed: "session-failed",
-  completed: "session-completed",
-};
 
 export const useTaskStore = defineStore("tasks", () => {
   const tasks = ref<AgentTask[]>([]);
@@ -22,7 +15,6 @@ export const useTaskStore = defineStore("tasks", () => {
   const loading = ref(false);
   const now = ref(Date.now());
   const acknowledgedCompletedEventKeys = ref(loadAcknowledgedCompletedEventKeys());
-  const notifiedTaskEventKeys = ref(loadNotificationEventKeys());
   const manuallyClearedTaskKeys = ref(loadCompletedEventKeys("agent-island-manually-cleared-task-events"));
   const autoAcknowledgeTimers = new Map<string, number>();
 
@@ -78,10 +70,6 @@ export const useTaskStore = defineStore("tasks", () => {
 
   async function refreshTasks() {
     const nextTasks = filterAcknowledgedCompletedTasks(await getTasks());
-    for (const task of nextTasks) {
-      const previous = tasks.value.find((item) => item.id === task.id);
-      maybeNotifyTaskStatus(task, previous);
-    }
     tasks.value = nextTasks;
   }
 
@@ -100,12 +88,10 @@ export const useTaskStore = defineStore("tasks", () => {
 
     const index = tasks.value.findIndex((item) => item.id === task.id);
     if (index >= 0) {
-      maybeNotifyTaskStatus(task, tasks.value[index]);
       tasks.value[index] = task;
       return;
     }
 
-    maybeNotifyTaskStatus(task);
     tasks.value.push(task);
   }
 
@@ -225,29 +211,6 @@ export const useTaskStore = defineStore("tasks", () => {
     return nextTasks.filter((task) => !isAcknowledgedCompletedTask(task) && !isManuallyClearedTask(task));
   }
 
-  function maybeNotifyTaskStatus(task: AgentTask, previous?: AgentTask) {
-    if (!preferences.settings.notifications.enabled || !notificationStatuses.has(task.status)) {
-      return;
-    }
-
-    const eventKey = taskNotificationKey(task);
-    if (previous?.status === task.status && taskNotificationKey(previous) === eventKey) {
-      return;
-    }
-
-    if (notifiedTaskEventKeys.value.has(eventKey)) {
-      return;
-    }
-
-    notifiedTaskEventKeys.value = new Set([...notifiedTaskEventKeys.value, eventKey]);
-    try {
-      saveCompletedEventKeys("agent-island-notified-task-events", notifiedTaskEventKeys.value);
-    } catch (error) {
-      console.warn("[agent-island] failed to save notified event keys", error);
-    }
-    void sendTaskStatusNotification(maskTask(task, preferences.privacy));
-  }
-
   function scheduleAutoAcknowledgeTimers() {
     clearAutoAcknowledgeTimers();
 
@@ -312,15 +275,6 @@ function completedAcknowledgementKey(task: AgentTask) {
   return `${task.id}::${completedEvent?.id ?? "completed"}::${completedEvent?.timestamp ?? task.updatedAt}`;
 }
 
-function taskNotificationKey(task: AgentTask) {
-  if (task.status === "completed") {
-    return completedAcknowledgementKey(task);
-  }
-
-  const stateEvent = latestEventOfType(task, notificationEventTypes[task.status]);
-  return `${task.id}::${task.status}::${stateEvent?.id ?? task.status}::${stateEvent?.timestamp ?? task.updatedAt}`;
-}
-
 function completedAt(task: AgentTask) {
   const completedEvent = latestCompletedEvent(task);
   return new Date(completedEvent?.timestamp ?? task.updatedAt).getTime();
@@ -354,13 +308,6 @@ function latestEventOfType(task: AgentTask, type?: AgentEventType) {
 
 function loadAcknowledgedCompletedEventKeys() {
   return loadCompletedEventKeys("agent-island-acknowledged-completed-events");
-}
-
-function loadNotificationEventKeys() {
-  return new Set([
-    ...loadCompletedEventKeys("agent-island-notified-completed-events"),
-    ...loadCompletedEventKeys("agent-island-notified-task-events"),
-  ]);
 }
 
 function loadCompletedEventKeys(storageKey: string) {

@@ -2,35 +2,47 @@ use crate::{
     adapters::types::{AgentSource, AppSettings, HookOperation, HookOperationError},
     services::{config_store, hook_installer},
 };
+use tauri::{AppHandle, Emitter};
 
 #[tauri::command]
 pub async fn set_hook_source_enabled(
+    app: AppHandle,
     source: AgentSource,
     enabled: bool,
 ) -> Result<AppSettings, String> {
-    if enabled {
+    let settings = if enabled {
         run_install(source, HookOperation::Install)
     } else {
         run_uninstall(source)
-    }
+    }?;
+    emit_settings_updated(&app, &settings);
+    Ok(settings)
 }
 
 #[tauri::command]
 pub async fn retry_hook_source_operation(
+    app: AppHandle,
     source: AgentSource,
     operation: HookOperation,
 ) -> Result<AppSettings, String> {
-    match operation {
+    let settings = match operation {
         HookOperation::Install => run_install(source, HookOperation::Install),
         HookOperation::Repair => run_install(source, HookOperation::Repair),
         HookOperation::Uninstall => run_uninstall(source),
         HookOperation::SelfTest => run_self_test(source),
-    }
+    }?;
+    emit_settings_updated(&app, &settings);
+    Ok(settings)
 }
 
 #[tauri::command]
-pub async fn run_hook_self_test(source: AgentSource) -> Result<AppSettings, String> {
-    run_self_test(source)
+pub async fn run_hook_self_test(
+    app: AppHandle,
+    source: AgentSource,
+) -> Result<AppSettings, String> {
+    let settings = run_self_test(source)?;
+    emit_settings_updated(&app, &settings);
+    Ok(settings)
 }
 
 fn run_install(source: AgentSource, operation: HookOperation) -> Result<AppSettings, String> {
@@ -108,6 +120,10 @@ fn persist_error(
     hook_installer::persist_manifest_error(&source, &operation_error)?;
     config_store::save_settings(&settings)?;
     Ok(settings)
+}
+
+fn emit_settings_updated(app: &AppHandle, settings: &AppSettings) {
+    let _ = app.emit("settings-updated", settings.clone());
 }
 
 fn set_source_enabled(settings: &mut AppSettings, source: &AgentSource, enabled: bool) {

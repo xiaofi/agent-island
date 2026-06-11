@@ -28,6 +28,7 @@ vi.mock("@/bridge/tauriApi", () => ({
     },
     quietMode: false,
     mousePassthrough: false,
+    showInDock: false,
     enabledAdapters: ["manual", "codex", "claude-code"],
     hookSource: {
       codex: false,
@@ -41,6 +42,7 @@ vi.mock("@/bridge/tauriApi", () => ({
   openAppWindow: vi.fn(),
   runDiscovery: vi.fn(async () => []),
   saveIslandWindowPosition: vi.fn(),
+  setDockVisibility: vi.fn(),
   setWindowMode: vi.fn(),
   startWindowDrag: vi.fn(),
   subscribeWindowFocusChanged: vi.fn(async () => () => undefined),

@@ -5,12 +5,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AgentEvent, AgentTask, TaskStatus } from "@/domain/taskTypes";
 import { useTaskStore } from "@/stores/taskStore";
 import { usePreferencesStore } from "@/stores/preferencesStore";
-import { sendTaskStatusNotification } from "@/bridge/notifications";
-
-vi.mock("@/bridge/notifications", () => ({
-  ensureNotificationsPermission: vi.fn().mockResolvedValue(true),
-  sendTaskStatusNotification: vi.fn(),
-}));
 
 function event(id: string, type: AgentEvent["type"], timestamp: string, summary: string): AgentEvent {
   return {
@@ -80,45 +74,6 @@ describe("taskStore completed acknowledgements", () => {
 
     expect(store.completedAlertTasks).toHaveLength(1);
     expect(store.completedAlertTasks[0].updatedAt).toBe("2026-05-30T02:00:00.000Z");
-  });
-
-  it("sends one notification when a task enters completed state", () => {
-    const preferencesStore = usePreferencesStore();
-    preferencesStore.settings.notifications.enabled = true;
-    const store = useTaskStore();
-
-    store.upsertTask(task("running"));
-    store.upsertTask(completedTask("complete-1", "2026-05-30T01:00:00.000Z"));
-    store.upsertTask(completedTask("complete-1", "2026-05-30T01:00:00.000Z"));
-
-    expect(sendTaskStatusNotification).toHaveBeenCalledTimes(1);
-  });
-
-  it("sends notifications for waiting and failed task states", () => {
-    const preferencesStore = usePreferencesStore();
-    preferencesStore.settings.notifications.enabled = true;
-    const store = useTaskStore();
-
-    store.upsertTask(task("waiting-user", [event("wait-1", "waiting-for-user", "2026-05-30T01:00:00.000Z", "等待用户确认")]));
-    store.upsertTask({
-      ...task("failed", [event("fail-1", "session-failed", "2026-05-30T01:02:00.000Z", "任务失败")]),
-      updatedAt: "2026-05-30T01:02:00.000Z",
-    });
-
-    expect(sendTaskStatusNotification).toHaveBeenCalledTimes(2);
-    expect(sendTaskStatusNotification).toHaveBeenNthCalledWith(1, expect.objectContaining({ status: "waiting-user" }));
-    expect(sendTaskStatusNotification).toHaveBeenNthCalledWith(2, expect.objectContaining({ status: "failed" }));
-  });
-
-  it("sends another notification for a new completed event while the task stays completed", () => {
-    const preferencesStore = usePreferencesStore();
-    preferencesStore.settings.notifications.enabled = true;
-    const store = useTaskStore();
-
-    store.upsertTask(completedTask("complete-1", "2026-05-30T01:00:00.000Z"));
-    store.upsertTask(completedTask("complete-2", "2026-05-30T02:00:00.000Z"));
-
-    expect(sendTaskStatusNotification).toHaveBeenCalledTimes(2);
   });
 
   it("automatically acknowledges completed tasks after the configured delay", async () => {

@@ -10,11 +10,12 @@ use tauri::{AppHandle, Emitter};
 
 use crate::{
     adapters::types::AgentTask,
-    services::{config_store, hook_ingest},
+    services::{config_store, hook_ingest, task_notifications},
 };
 
 struct WatcherState {
     tasks: HashMap<String, AgentTask>,
+    notifications: task_notifications::TaskNotificationState,
 }
 
 /// 持有 watcher 所有权，确保应用退出时 notify channel 被断开，
@@ -28,6 +29,7 @@ pub fn start_task_watcher(app: &AppHandle) -> Option<TaskWatcherHandle> {
     let app_handle = app.clone();
     let state = Arc::new(Mutex::new(WatcherState {
         tasks: HashMap::new(),
+        notifications: task_notifications::TaskNotificationState::default(),
     }));
 
     let events_dir = match config_store::app_support_dir() {
@@ -99,9 +101,10 @@ fn sync_and_emit(app_handle: &AppHandle, state: &Arc<Mutex<WatcherState>>) {
 
     let new_ids: HashSet<_> = tasks.iter().map(|t| t.id.clone()).collect();
     let old_ids: Vec<_> = guard.tasks.keys().cloned().collect();
+    let previous_tasks = guard.tasks.clone();
 
     for task in &tasks {
-        let should_emit = match guard.tasks.get(&task.id) {
+        let should_emit = match previous_tasks.get(&task.id) {
             Some(old) => old.updated_at != task.updated_at,
             None => true,
         };
@@ -113,6 +116,14 @@ fn sync_and_emit(app_handle: &AppHandle, state: &Arc<Mutex<WatcherState>>) {
             }
         }
     }
+
+    task_notifications::notify_task_updates(
+        app_handle,
+        &mut guard.notifications,
+        &settings,
+        &tasks,
+        &previous_tasks,
+    );
 
     for old_id in old_ids {
         if !new_ids.contains(&old_id) {

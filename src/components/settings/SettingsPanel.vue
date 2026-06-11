@@ -189,6 +189,18 @@ function handleOpacityChange(event: Event) {
 
     <label class="toggle-row">
       <span>
+        <strong>显示在 Dock 栏</strong>
+        <small>开启后应用显示 Dock 图标；关闭后保持后台悬浮工具形态。</small>
+      </span>
+      <input
+        type="checkbox"
+        :checked="settings.showInDock"
+        @change="preferencesStore.setShowInDockPreference(($event.target as HTMLInputElement).checked)"
+      />
+    </label>
+
+    <label class="toggle-row">
+      <span>
         <strong>安静模式</strong>
         <small>悬浮岛只显示等待处理、失败和完成任务，隐藏普通运行状态。</small>
       </span>

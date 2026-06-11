@@ -27,6 +27,7 @@ const baseSettings: AppSettings = {
   },
   quietMode: false,
   mousePassthrough: false,
+  showInDock: false,
   enabledAdapters: ["manual", "codex", "claude-code"],
   hookSource: {
     codex: false,
@@ -111,13 +112,15 @@ describe("SettingsPanel hook source controls", () => {
     expect(wrapper.text()).not.toContain("卸载失败");
   });
 
-  it("shows the quiet mode setting", () => {
+  it("shows quiet mode and Dock visibility settings", () => {
     const settings = structuredClone(baseSettings);
     settings.quietMode = true;
+    settings.showInDock = true;
 
     const wrapper = mountPanel(settings, [diagnostic("codex", "unavailable"), diagnostic("claude-code", "unavailable")]);
 
     expect(wrapper.text()).toContain("安静模式");
+    expect(wrapper.text()).toContain("显示在 Dock 栏");
     expect(wrapper.findAll("input[type='checkbox']").some((input) => (input.element as HTMLInputElement).checked)).toBe(true);
   });
 

@@ -8,11 +8,11 @@ Accepted
 
 macOS 全屏应用运行在独立 Space 中。普通 Tauri `WebviewWindow` 即使设置 `alwaysOnTop` 和 `visibleOnAllWorkspaces`，仍可能无法显示在全屏应用之上。
 
-Agent Island 的悬浮岛更接近 HUD / 菜单栏辅助应用，而不是常规文档型应用。用户可以接受不在 Dock 和 App Switcher 中保留主应用图标。
+Agent Island 的悬浮岛更接近 HUD / 菜单栏辅助应用，而不是常规文档型应用。默认可以不在 Dock 和 App Switcher 中保留主应用图标，但需要允许用户按自己的桌面工作流打开 Dock 图标。
 
 ## 决策
 
-macOS 下在 Tauri `setup` 阶段设置应用激活策略为 `tauri::ActivationPolicy::Accessory`，再配置悬浮岛窗口：
+macOS 下默认隐藏 Dock 图标，并通过持久化的 `showInDock` 设置允许用户切换 Dock 可见性。Tauri `setup` 阶段读取该设置并调用 `set_dock_visibility`，再配置悬浮岛窗口：
 
 - 主窗口继续使用 Tauri `WebviewWindow`。
 - 窗口继续设置 `alwaysOnTop`、`visibleOnAllWorkspaces`、`FullScreenAuxiliary`、`CanJoinAllSpaces` 和高窗口层级。
@@ -29,6 +29,6 @@ macOS 下在 Tauri `setup` 阶段设置应用激活策略为 `tauri::ActivationP
 
 代价：
 
-- macOS Dock 和 App Switcher 中不再显示 Agent Island 主应用图标。
+- macOS Dock 和 App Switcher 中默认不显示 Agent Island 主应用图标；用户打开“显示在 Dock 栏”后会重新显示。
 - 这不是最终保证；不同 macOS 版本和全屏应用仍可能需要原生 `NSPanel`。
 - 该行为只能在原生 Tauri app 中验证，浏览器预览无法验证。

@@ -11,7 +11,10 @@ pub fn run() {
         .plugin(tauri_plugin_notification::init())
         .setup(|app| {
             #[cfg(target_os = "macos")]
-            app.set_activation_policy(tauri::ActivationPolicy::Accessory);
+            {
+                let settings = services::config_store::load_settings();
+                app.set_dock_visibility(settings.show_in_dock);
+            }
 
             let _ = services::hook_installer::refresh_helper_script();
 
@@ -37,6 +40,7 @@ pub fn run() {
             commands::task::open_workdir,
             commands::task::copy_task_summary,
             commands::window::set_mouse_passthrough,
+            commands::window::set_dock_visibility,
             commands::window::save_island_window_position,
             commands::window::set_window_mode,
             commands::window::open_app_window,

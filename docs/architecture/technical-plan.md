@@ -186,7 +186,7 @@ src-tauri/src/
 - `services/hook_installer.rs`：预览、安装、卸载 Claude Code / Codex hook，保证备份、幂等和只删除自身条目。
 - `services/hook_ingest.rs`：消费 hook helper 写入的本地 JSONL 事件，按来源接入设置过滤后归一化为 `AgentEvent`。
 - `commands/discovery.rs`：暴露 `run_discovery(source?)` 给诊断页。
-- `commands/window.rs`：处理拖拽、置顶、鼠标穿透、显示隐藏、位置记忆。
+- `commands/window.rs`：处理拖拽、置顶、鼠标穿透、Dock 显示、显示隐藏、位置记忆。
 
 ## 5. 数据模型
 
@@ -387,8 +387,9 @@ discovering: 1
 - 设置、诊断等完整功能从悬浮岛按钮打开独立普通桌面窗口。
 - 快捷键切换显示/隐藏。
 - 鼠标穿透默认关闭；开启后仅通过快捷键或 hover 策略临时接收事件。
+- Dock 栏显示默认关闭；用户打开后通过 Tauri `set_dock_visibility` 立即显示 Dock 图标，启动时按持久化配置恢复。
 
-需要重点验证 macOS 下透明窗口、阴影、鼠标穿透和拖拽之间的兼容性。
+需要重点验证 macOS 下透明窗口、阴影、鼠标穿透、Dock 显示和拖拽之间的兼容性。
 
 ## 9. UI 方案
 
@@ -404,7 +405,7 @@ discovering: 1
 - 压缩态：状态点、主状态文本、任务数/等待标记；未确认完成任务逐行显示确认项。
 - 悬浮岛展开态：下拉任务卡片列表，最多优先展示 5-7 个活跃任务。
 - 悬浮岛详情态：轻量元信息、最近事件、错误/等待原因、操作按钮。
-- 独立设置窗口：隐私模式、路径隐藏、标题隐藏、快捷键、鼠标穿透。
+- 独立设置窗口：隐私模式、路径隐藏、标题隐藏、快捷键、鼠标穿透、Dock 栏显示。
 - 设置窗口还包含悬浮岛透明度、关键状态通知和完成任务自动确认；这些属于本地 UI 偏好，不改变 agent 执行流程。
 - 独立诊断窗口：adapter 来源、权限、候选路径、解析状态。
 
@@ -417,8 +418,9 @@ discovering: 1
 外观与提醒：
 
 - `appearance.islandOpacity`: 固定应用到压缩态悬浮岛和展开任务面板背景，不使用整体 `opacity`，避免文字和状态点变淡。
-- `notifications.enabled`: 控制 `waiting-user`、`failed`、`completed` 关键状态系统通知。用户开启时请求系统权限，同一关键状态事件只通知一次，启动或重新加载已有任务时不回放历史通知。
+- `notifications.enabled`: 控制 `waiting-user`、`failed`、`completed` 关键状态系统通知。用户开启时请求系统权限，Rust task watcher 统一在任务进入关键状态时发送通知；同一状态停留期间的后续同类事件不重复通知，启动或重新加载已有任务时不回放历史通知。
 - `autoAcknowledge.enabled` / `autoAcknowledge.delaySeconds`: 控制完成任务自动确认。到期后复用完成确认逻辑归档 `completed` 任务，不处理 `paused`、`waiting-user` 或 `failed`。
+- `showInDock`: 控制 macOS Dock 图标是否显示。默认关闭，切换时通过 Rust window command 立即应用，启动时按本地配置恢复。
 
 ## 10. 本地配置与权限说明
 
@@ -437,6 +439,7 @@ discovering: 1
 - discovery 候选路径覆盖。
 - 快捷键。
 - 鼠标穿透选项。
+- Dock 栏显示选项。
 
 首次启用 adapter 时，诊断页需要展示将读取的范围：
 
@@ -463,6 +466,7 @@ open_task(taskId: string): Promise<void>
 open_workdir(path: string): Promise<void>
 copy_task_summary(taskId: string): Promise<void>
 set_mouse_passthrough(enabled: boolean): Promise<void>
+set_dock_visibility(visible: boolean): Promise<void>
 set_window_mode(expanded: boolean): Promise<void>
 open_app_window(kind: "settings" | "diagnostics"): Promise<void>
 toggle_window_visibility(): Promise<void>

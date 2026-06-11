@@ -2,6 +2,7 @@ use crate::{
     adapters::types::{AppSettings, AppSettingsPatch},
     services::config_store,
 };
+use tauri::{AppHandle, Emitter};
 
 #[tauri::command]
 pub async fn get_settings() -> Result<AppSettings, String> {
@@ -9,7 +10,10 @@ pub async fn get_settings() -> Result<AppSettings, String> {
 }
 
 #[tauri::command]
-pub async fn update_settings(patch: AppSettingsPatch) -> Result<AppSettings, String> {
+pub async fn update_settings(
+    app: AppHandle,
+    patch: AppSettingsPatch,
+) -> Result<AppSettings, String> {
     let mut settings = config_store::load_settings();
 
     if let Some(privacy) = patch.privacy {
@@ -36,6 +40,10 @@ pub async fn update_settings(patch: AppSettingsPatch) -> Result<AppSettings, Str
         settings.mouse_passthrough = mouse_passthrough;
     }
 
+    if let Some(show_in_dock) = patch.show_in_dock {
+        settings.show_in_dock = show_in_dock;
+    }
+
     if let Some(enabled_adapters) = patch.enabled_adapters {
         settings.enabled_adapters = enabled_adapters;
     }
@@ -49,5 +57,6 @@ pub async fn update_settings(patch: AppSettingsPatch) -> Result<AppSettings, Str
     }
 
     config_store::save_settings(&settings)?;
+    let _ = app.emit("settings-updated", settings.clone());
     Ok(settings)
 }

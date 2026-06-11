@@ -6,6 +6,7 @@ import {
   getSettings,
   retryHookSourceOperation,
   runHookSelfTest,
+  setDockVisibility,
   setHookSourceEnabled,
   setMousePassthrough,
   updateSettings,
@@ -30,6 +31,7 @@ export const usePreferencesStore = defineStore("preferences", () => {
     },
     quietMode: false,
     mousePassthrough: false,
+    showInDock: false,
     enabledAdapters: ["manual", "codex", "claude-code"],
     hookSource: {
       codex: false,
@@ -50,6 +52,11 @@ export const usePreferencesStore = defineStore("preferences", () => {
     } catch (error) {
       console.warn("[agent-island] failed to apply mouse passthrough preference", error);
     }
+    try {
+      await setDockVisibility(settings.value.showInDock);
+    } catch (error) {
+      console.warn("[agent-island] failed to apply Dock visibility preference", error);
+    }
   }
 
   async function patch(patchValue: Partial<AppSettings>) {
@@ -68,6 +75,11 @@ export const usePreferencesStore = defineStore("preferences", () => {
   async function setMousePassthroughPreference(enabled: boolean) {
     settings.value = await updateSettings({ mousePassthrough: enabled });
     await setMousePassthrough(enabled);
+  }
+
+  async function setShowInDockPreference(enabled: boolean) {
+    settings.value = await updateSettings({ showInDock: enabled });
+    await setDockVisibility(enabled);
   }
 
   async function setQuietMode(enabled: boolean) {
@@ -141,6 +153,7 @@ export const usePreferencesStore = defineStore("preferences", () => {
     setAutoAcknowledgeEnabled,
     setAutoAcknowledgeDelay,
     setMousePassthroughPreference,
+    setShowInDockPreference,
     setHookSource,
     retryHookSource,
     selfTestHookSource,

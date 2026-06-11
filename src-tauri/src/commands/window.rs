@@ -17,6 +17,22 @@ pub async fn set_mouse_passthrough(app: AppHandle, enabled: bool) -> Result<(), 
 }
 
 #[tauri::command]
+pub async fn set_dock_visibility(app: AppHandle, visible: bool) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    {
+        return app
+            .set_dock_visibility(visible)
+            .map_err(|error| error.to_string());
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = (app, visible);
+        Ok(())
+    }
+}
+
+#[tauri::command]
 pub async fn save_island_window_position(app: AppHandle) -> Result<(), String> {
     let window = app
         .get_webview_window("main")
