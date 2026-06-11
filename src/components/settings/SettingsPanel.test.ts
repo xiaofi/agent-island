@@ -20,6 +20,7 @@ const baseSettings: AppSettings = {
   },
   notifications: {
     enabled: false,
+    sound: "default",
   },
   autoAcknowledge: {
     enabled: false,
@@ -128,6 +129,7 @@ describe("SettingsPanel hook source controls", () => {
     const settings = structuredClone(baseSettings);
     settings.appearance.islandOpacity = 0.7;
     settings.notifications.enabled = true;
+    settings.notifications.sound = "Ping";
     settings.autoAcknowledge.enabled = true;
     settings.autoAcknowledge.delaySeconds = 1800;
 
@@ -136,11 +138,21 @@ describe("SettingsPanel hook source controls", () => {
     expect(wrapper.text()).toContain("悬浮岛透明度");
     expect(wrapper.text()).toContain("70%");
     expect(wrapper.text()).toContain("关键状态通知");
+    expect(wrapper.text()).toContain("通知声音");
     expect(wrapper.text()).toContain("自动确认完成任务");
 
-    await wrapper.find("select").setValue("300");
+    const autoAckSelect = wrapper.findAll("select").find((select) => select.text().includes("15 分钟"));
+    expect(autoAckSelect).toBeTruthy();
+    await autoAckSelect!.setValue("300");
     await nextTick();
 
     expect(usePreferencesStore().settings.autoAcknowledge.delaySeconds).toBe(300);
+
+    const soundSelect = wrapper.findAll("select").find((select) => select.text().includes("系统默认"));
+    expect(soundSelect).toBeTruthy();
+    await soundSelect!.setValue("Hero");
+    await nextTick();
+
+    expect(usePreferencesStore().settings.notifications.sound).toBe("Hero");
   });
 });

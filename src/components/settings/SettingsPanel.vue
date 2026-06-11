@@ -3,7 +3,7 @@ import { computed, onMounted, ref } from "vue";
 import { storeToRefs } from "pinia";
 import { RefreshCw } from "@lucide/vue";
 import { sourceLabel } from "@/domain/privacy";
-import type { AgentSource, HookOperationError } from "@/domain/taskTypes";
+import type { AgentSource, HookOperationError, NotificationSound } from "@/domain/taskTypes";
 import { usePreferencesStore } from "@/stores/preferencesStore";
 import { useTaskStore } from "@/stores/taskStore";
 
@@ -20,6 +20,17 @@ const autoAcknowledgeOptions = [
   { label: "15 分钟", value: 900 },
   { label: "30 分钟", value: 1800 },
   { label: "1 小时", value: 3600 },
+];
+const notificationSoundOptions: { label: string; value: NotificationSound }[] = [
+  { label: "系统默认", value: "default" },
+  { label: "Basso", value: "Basso" },
+  { label: "Ping", value: "Ping" },
+  { label: "Glass", value: "Glass" },
+  { label: "Hero", value: "Hero" },
+  { label: "Pop", value: "Pop" },
+  { label: "Sosumi", value: "Sosumi" },
+  { label: "Tink", value: "Tink" },
+  { label: "无声", value: "none" },
 ];
 const busySource = ref<HookUiSource>();
 const pendingSource = ref<HookUiSource>();
@@ -134,6 +145,11 @@ async function selfTest(source: HookUiSource) {
 function handleOpacityChange(event: Event) {
   const value = Number((event.target as HTMLInputElement).value);
   void preferencesStore.setIslandOpacity(value);
+}
+
+function handleNotificationSoundChange(event: Event) {
+  const value = (event.target as HTMLSelectElement).value as NotificationSound;
+  void preferencesStore.setNotificationSound(value);
 }
 </script>
 
@@ -259,6 +275,18 @@ function handleOpacityChange(event: Event) {
           :checked="settings.notifications.enabled"
           @change="preferencesStore.setNotificationsEnabled(($event.target as HTMLInputElement).checked)"
         />
+      </label>
+
+      <label class="setting-field">
+        <span>
+          <strong>通知声音</strong>
+          <small>开启关键状态通知后使用；选择无声时只发送通知。</small>
+        </span>
+        <select :value="settings.notifications.sound" @change="handleNotificationSoundChange">
+          <option v-for="option in notificationSoundOptions" :key="option.value" :value="option.value">
+            {{ option.label }}
+          </option>
+        </select>
       </label>
 
       <label class="toggle-row">

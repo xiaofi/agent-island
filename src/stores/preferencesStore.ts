@@ -1,6 +1,6 @@
 import { defineStore } from "pinia";
 import { computed, ref } from "vue";
-import type { AgentSource, AppSettings, HookOperation } from "@/domain/taskTypes";
+import type { AgentSource, AppSettings, HookOperation, NotificationSound } from "@/domain/taskTypes";
 import { ensureNotificationsPermission } from "@/bridge/notifications";
 import {
   getSettings,
@@ -24,6 +24,7 @@ export const usePreferencesStore = defineStore("preferences", () => {
     },
     notifications: {
       enabled: false,
+      sound: "default",
     },
     autoAcknowledge: {
       enabled: false,
@@ -105,6 +106,15 @@ export const usePreferencesStore = defineStore("preferences", () => {
     });
   }
 
+  async function setNotificationSound(sound: NotificationSound) {
+    await patch({
+      notifications: {
+        ...settings.value.notifications,
+        sound,
+      },
+    });
+  }
+
   async function setAutoAcknowledgeEnabled(enabled: boolean) {
     await patch({
       autoAcknowledge: {
@@ -150,6 +160,7 @@ export const usePreferencesStore = defineStore("preferences", () => {
     setQuietMode,
     setIslandOpacity,
     setNotificationsEnabled,
+    setNotificationSound,
     setAutoAcknowledgeEnabled,
     setAutoAcknowledgeDelay,
     setMousePassthroughPreference,

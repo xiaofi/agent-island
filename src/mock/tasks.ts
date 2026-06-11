@@ -100,6 +100,7 @@ export const mockSettings: AppSettings = {
   },
   notifications: {
     enabled: false,
+    sound: "default",
   },
   autoAcknowledge: {
     enabled: false,

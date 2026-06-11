@@ -131,6 +131,8 @@ pub struct AppearanceSettings {
 #[serde(rename_all = "camelCase")]
 pub struct NotificationSettings {
     pub enabled: bool,
+    #[serde(default = "default_notification_sound")]
+    pub sound: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -253,7 +255,14 @@ pub fn default_appearance_settings() -> AppearanceSettings {
 }
 
 pub fn default_notification_settings() -> NotificationSettings {
-    NotificationSettings { enabled: false }
+    NotificationSettings {
+        enabled: false,
+        sound: default_notification_sound(),
+    }
+}
+
+pub fn default_notification_sound() -> String {
+    "default".to_string()
 }
 
 pub fn default_auto_acknowledge_settings() -> AutoAcknowledgeSettings {

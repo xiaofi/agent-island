@@ -406,7 +406,7 @@ discovering: 1
 - 悬浮岛展开态：下拉任务卡片列表，最多优先展示 5-7 个活跃任务。
 - 悬浮岛详情态：轻量元信息、最近事件、错误/等待原因、操作按钮。
 - 独立设置窗口：隐私模式、路径隐藏、标题隐藏、快捷键、鼠标穿透、Dock 栏显示。
-- 设置窗口还包含悬浮岛透明度、关键状态通知和完成任务自动确认；这些属于本地 UI 偏好，不改变 agent 执行流程。
+- 设置窗口还包含悬浮岛透明度、关键状态通知、通知声音和完成任务自动确认；这些属于本地 UI 偏好，不改变 agent 执行流程。
 - 独立诊断窗口：adapter 来源、权限、候选路径、解析状态。
 
 隐私模式：
@@ -419,6 +419,7 @@ discovering: 1
 
 - `appearance.islandOpacity`: 固定应用到压缩态悬浮岛和展开任务面板背景，不使用整体 `opacity`，避免文字和状态点变淡。
 - `notifications.enabled`: 控制 `waiting-user`、`failed`、`completed` 关键状态系统通知。用户开启时请求系统权限，Rust task watcher 统一在任务进入关键状态时发送通知；同一状态停留期间的后续同类事件不重复通知，启动或重新加载已有任务时不回放历史通知。
+- `notifications.sound`: 控制关键状态通知声音。默认使用系统默认通知音；设置窗口提供 Basso、Ping、Glass、Hero、Pop、Sosumi、Tink 和无声选项；选择无声时仍发送通知但不设置声音。
 - `autoAcknowledge.enabled` / `autoAcknowledge.delaySeconds`: 控制完成任务自动确认。到期后复用完成确认逻辑归档 `completed` 任务，不处理 `paused`、`waiting-user` 或 `failed`。
 - `showInDock`: 控制 macOS Dock 图标是否显示。默认关闭，切换时通过 Rust window command 立即应用，启动时按本地配置恢复。
 

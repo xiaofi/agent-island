@@ -21,6 +21,7 @@ vi.mock("@/bridge/tauriApi", () => ({
     },
     notifications: {
       enabled: false,
+      sound: "default",
     },
     autoAcknowledge: {
       enabled: false,

@@ -90,8 +90,11 @@ export interface AppearanceSettings {
   islandOpacity: number;
 }
 
+export type NotificationSound = "default" | "none" | "Basso" | "Glass" | "Hero" | "Ping" | "Pop" | "Sosumi" | "Tink";
+
 export interface NotificationSettings {
   enabled: boolean;
+  sound: NotificationSound;
 }
 
 export interface AutoAcknowledgeSettings {

@@ -55,13 +55,18 @@ pub fn notify_task_updates(
             continue;
         }
 
-        let result = app_handle
+        let mut builder = app_handle
             .notification()
             .builder()
             .title(payload.title)
             .body(payload.body)
-            .group("agent-island-tasks")
-            .show();
+            .group("agent-island-tasks");
+
+        if let Some(sound) = notification_sound_name(&settings.notifications.sound) {
+            builder = builder.sound(sound);
+        }
+
+        let result = builder.show();
 
         match result {
             Ok(()) => {
@@ -179,6 +184,21 @@ fn source_label(source: &AgentSource) -> &'static str {
     }
 }
 
+fn notification_sound_name(sound: &str) -> Option<&'static str> {
+    match sound.trim() {
+        "none" => None,
+        "Basso" => Some("Basso"),
+        "Glass" => Some("Glass"),
+        "Hero" => Some("Hero"),
+        "Ping" => Some("Ping"),
+        "Pop" => Some("Pop"),
+        "Sosumi" => Some("Sosumi"),
+        "Tink" => Some("Tink"),
+        "default" | "" => Some("NSUserNotificationDefaultSoundName"),
+        _ => Some("NSUserNotificationDefaultSoundName"),
+    }
+}
+
 fn prune_notified_keys(keys: &mut HashSet<String>) {
     if keys.len() <= 200 {
         return;
@@ -259,5 +279,19 @@ mod tests {
         let payload = notification_payload(&next, Some(&previous), &settings).unwrap();
 
         assert_eq!(payload.body, "Codex task");
+    }
+
+    #[test]
+    fn maps_notification_sound_preferences() {
+        assert_eq!(
+            notification_sound_name("default"),
+            Some("NSUserNotificationDefaultSoundName")
+        );
+        assert_eq!(notification_sound_name("Ping"), Some("Ping"));
+        assert_eq!(notification_sound_name("none"), None);
+        assert_eq!(
+            notification_sound_name("unknown"),
+            Some("NSUserNotificationDefaultSoundName")
+        );
     }
 }
