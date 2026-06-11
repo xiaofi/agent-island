@@ -12,10 +12,10 @@ Claude Code / Codex hook
         ▼
 agent-island-hook helper
         │ check source enabled setting
-        │ sanitized JSONL
+        │ append sanitized JSONL
         ▼
 ~/Library/Application Support/Agent Island/events/*.jsonl
-        │
+        │ Rust watcher compacts to last 3 days when due
         ▼
 Rust hook ingest service
         │ AgentEvent / AgentTask
@@ -34,6 +34,13 @@ Vue / Pinia / Island UI
 - Claude Code 的 `Stop`、`SessionEnd`、`SubagentStop` 和 `TaskCompleted` 都归一化为 `completed`。
 - `TaskCompleted` 需要写入 Claude Code hook 配置；老版本安装缺少该事件时，重新打开或修复 Claude Code 接入后才会收到这类完成事件。
 - `Notification`、`CwdChanged` 这类不改变任务状态的事件不会覆盖之前的完成态；只有 `Notification.permission_prompt` 会归一化为 `waiting-user`。
+- 未识别的未来 hook event 默认只作为 heartbeat 事件展示，不改变已有状态，避免新 schema 把完成态或等待态误拉回运行态。
+
+## 超时态
+
+- `PreToolUse` 后超过 10 分钟仍未收到新的状态改变事件时，任务归一化为 `stale`，表示工具运行状态可能已经失去可信度，但不判定为失败。
+- Rust watcher 除了监听 `events/*.jsonl` 变化，也会每 5 分钟检查一次是否需要刷新任务快照；只有存在可能进入 `stale` 的 `tool-running` 任务，或 spool 实际触发压缩时，才会重建快照。
+- Spool 压缩和快照重建解耦：启动时压缩一次；后续只有事件文件自上次压缩后发生变化，并且距离上次压缩至少 1 小时，或单个 spool 文件超过 5 MiB，才再次压缩。
 
 ## 暂停态
 
@@ -43,6 +50,7 @@ Vue / Pinia / Island UI
 
 ## Hook 接收日志
 
+- `events/*.jsonl` 是 append-only hook 事件 spool；helper 写入路径只追加当前事件，Rust watcher 在启动和满足压缩条件时按 `timestamp` 裁剪，只保留最近 3 天的可解析事件。
 - Helper 会额外写入 `~/Library/Application Support/Agent Island/logs/hook-receipts-YYYY-MM-DD.jsonl`，用于排查 hook 是否到达、是否解析成功、是否写入状态事件。
 - 接收日志保留 5 天，helper 每次运行时按文件日期清理过期日志。
 - 日志只保存裁剪后的诊断字段：`source`、`event`、`sessionKey`、`cwd`、`toolName`、`notificationType`、`permissionMode`、解析结果、payload 大小、是否出现 prompt/tool input/tool response 字段，以及写入结果。
@@ -59,6 +67,16 @@ Vue / Pinia / Island UI
 - 正常关闭某来源开关后，该来源配置中不应再有 Agent Island hook command，Claude Code / Codex 不会再调用 helper。
 - helper 仍在写 spool 前读取本地设置作为防御；如果当前 `source` 未启用接入，直接静默退出且不落盘。
 - Rust ingest service 再次按设置过滤来源，防止旧版本或卸载失败残留事件在关闭接入后继续进入 UI。
+
+## 后续 Windows 支持 TODO
+
+- 把文档和代码里的 macOS app support 示例路径抽象为平台路径；Windows 侧预期落到 `%APPDATA%\Agent Island\events\*.jsonl` 和对应 `logs` 目录。
+- 替换 Rust 侧 `libc::flock` 为跨平台文件锁封装，Windows 实现需要验证 `LockFileEx` 或等价库在 append、读取和压缩替换时的语义。
+- 替换 helper 里的 POSIX 假设：Windows 不能依赖 `/bin/sh` 或 Python `fcntl.flock`，需要使用 `.exe` sidecar 或 Windows 专用锁实现。
+- 复核 `events/*.jsonl` 压缩策略在 Windows 上的原子替换行为，避免打开中的文件导致 `rename` / `replace` 失败或阻塞 hook 写入。
+- 更新 hook install/uninstall 的命令拼接、路径转义和 `.exe` 后缀处理，覆盖带空格路径和反斜杠路径。
+- 明确 Windows 通知权限、通知音和无声模式的降级行为；macOS 内置 sound 名称不能直接复用。
+- 增加 Windows CI 或本机验证矩阵：helper 真实执行、append lock、3 天 spool 压缩、hook 安装 dry-run/卸载、Tauri floating window 和通知 smoke test。
 
 ## 默认禁止采集
 

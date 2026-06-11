@@ -20,7 +20,7 @@ pub fn run() {
 
             if let Some(window) = app.get_webview_window("main") {
                 services::island_window::configure_island_window(&window)
-                    .map_err(|error| std::io::Error::new(std::io::ErrorKind::Other, error))?;
+                    .map_err(std::io::Error::other)?;
             }
 
             let watcher_handle = services::task_watcher::start_task_watcher(app.handle());

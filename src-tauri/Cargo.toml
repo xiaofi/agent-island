@@ -1,6 +1,6 @@
 [package]
 name = "agent-island"
-version = "0.1.7"
+version = "0.1.8"
 description = "A lightweight floating desktop panel for local coding agents"
 authors = ["Agent Island"]
 edition = "2021"
@@ -20,6 +20,7 @@ serde_json = "1"
 sha2 = "0.10"
 notify = "7"
 sysinfo = "0.30"
+libc = "0.2"
 tauri = { version = "2", features = ["macos-private-api"] }
 tauri-plugin-notification = "2"
 thiserror = "1"

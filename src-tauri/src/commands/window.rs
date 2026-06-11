@@ -20,9 +20,8 @@ pub async fn set_mouse_passthrough(app: AppHandle, enabled: bool) -> Result<(), 
 pub async fn set_dock_visibility(app: AppHandle, visible: bool) -> Result<(), String> {
     #[cfg(target_os = "macos")]
     {
-        return app
-            .set_dock_visibility(visible)
-            .map_err(|error| error.to_string());
+        app.set_dock_visibility(visible)
+            .map_err(|error| error.to_string())
     }
 
     #[cfg(not(target_os = "macos"))]
@@ -66,9 +65,9 @@ pub async fn set_window_mode(
         }
     };
 
-    let target_y = if expanded && direction == "up" {
-        anchored_top_for_height(&window, size.height)
-    } else if !expanded && expansion_direction.as_deref() == Some("up") {
+    let should_anchor_top = (expanded && direction == "up")
+        || (!expanded && expansion_direction.as_deref() == Some("up"));
+    let target_y = if should_anchor_top {
         anchored_top_for_height(&window, size.height)
     } else {
         None

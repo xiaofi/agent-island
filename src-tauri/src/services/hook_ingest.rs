@@ -1,10 +1,13 @@
 use std::{
     collections::BTreeMap,
-    fs,
-    io::{BufRead, BufReader},
+    ffi::OsString,
+    fs::{self, File, OpenOptions},
+    io::{self, BufRead, BufReader, Write},
+    os::fd::AsRawFd,
     path::{Path, PathBuf},
 };
 
+use chrono::{DateTime, Duration, SecondsFormat, Utc};
 use serde::Deserialize;
 use serde_json::Value;
 use sha2::{Digest, Sha256};
@@ -22,6 +25,9 @@ use crate::{
 };
 
 const MAX_EVENTS_PER_TASK: usize = 10;
+const TOOL_RUNNING_STALE_AFTER_MINUTES: i64 = 10;
+const EVENT_SPOOL_RETENTION_DAYS: i64 = 3;
+const EVENT_SPOOL_COMPACTION_SIZE_THRESHOLD_BYTES: u64 = 5 * 1024 * 1024;
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -56,7 +62,52 @@ pub fn load_tasks(settings: &AppSettings) -> Vec<AgentTask> {
         events.extend(read_source_events("claude-code"));
     }
 
-    tasks_from_events(events)
+    tasks_from_events_at(events, home_dir().as_deref(), Some(Utc::now()))
+}
+
+pub fn compact_event_spool() {
+    let Some(events_dir) = config_store::app_support_dir().map(|dir| dir.join("events")) else {
+        return;
+    };
+    let cutoff = Utc::now() - Duration::days(EVENT_SPOOL_RETENTION_DAYS);
+
+    for source_slug in ["codex", "claude-code"] {
+        let path = events_dir.join(format!("{source_slug}.jsonl"));
+        if let Err(error) = compact_event_file(&path, cutoff) {
+            eprintln!(
+                "[hook_ingest] failed to compact {}: {error}",
+                path.display()
+            );
+        }
+    }
+}
+
+pub fn event_spool_exceeds_compaction_size_threshold() -> bool {
+    let Some(events_dir) = config_store::app_support_dir().map(|dir| dir.join("events")) else {
+        return false;
+    };
+
+    event_spool_exceeds_compaction_size_threshold_in_dir(&events_dir)
+}
+
+fn event_spool_exceeds_compaction_size_threshold_in_dir(events_dir: &Path) -> bool {
+    event_spool_exceeds_compaction_size_threshold_in_dir_at(
+        events_dir,
+        EVENT_SPOOL_COMPACTION_SIZE_THRESHOLD_BYTES,
+    )
+}
+
+fn event_spool_exceeds_compaction_size_threshold_in_dir_at(
+    events_dir: &Path,
+    threshold_bytes: u64,
+) -> bool {
+    ["codex", "claude-code"].iter().any(|source_slug| {
+        let path = events_dir.join(format!("{source_slug}.jsonl"));
+        match fs::metadata(path) {
+            Ok(metadata) => metadata.len() >= threshold_bytes,
+            Err(_) => false,
+        }
+    })
 }
 
 fn read_source_events(source_slug: &str) -> Vec<SpoolEvent> {
@@ -76,12 +127,107 @@ fn read_source_events(source_slug: &str) -> Vec<SpoolEvent> {
         .collect()
 }
 
-fn tasks_from_events(events: Vec<SpoolEvent>) -> Vec<AgentTask> {
-    let home = home_dir();
-    tasks_from_events_with_home(events, home.as_deref())
+fn compact_event_file(path: &Path, cutoff: DateTime<Utc>) -> io::Result<()> {
+    if !path.exists() {
+        return Ok(());
+    }
+
+    let lock_path = append_extension(path, ".lock");
+    let lock = OpenOptions::new()
+        .create(true)
+        .truncate(false)
+        .read(true)
+        .write(true)
+        .open(lock_path)?;
+    lock_exclusive(&lock)?;
+
+    let result = compact_event_file_locked(path, cutoff);
+    let unlock_result = unlock_file(&lock);
+
+    result.and(unlock_result)
 }
 
+fn compact_event_file_locked(path: &Path, cutoff: DateTime<Utc>) -> io::Result<()> {
+    let file = match File::open(path) {
+        Ok(file) => file,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(()),
+        Err(error) => return Err(error),
+    };
+    let reader = BufReader::new(file);
+    let mut kept_lines = Vec::new();
+    let mut line_count = 0usize;
+
+    for line in reader.lines() {
+        let line = line?;
+        line_count += 1;
+        if event_line_within_retention(&line, cutoff) {
+            kept_lines.push(line);
+        }
+    }
+
+    if kept_lines.len() == line_count {
+        return Ok(());
+    }
+
+    let tmp_path = append_extension(path, &format!(".tmp.{}", std::process::id()));
+    {
+        let mut tmp = File::create(&tmp_path)?;
+        for line in kept_lines {
+            writeln!(tmp, "{line}")?;
+        }
+        tmp.flush()?;
+    }
+    fs::rename(tmp_path, path)?;
+    Ok(())
+}
+
+fn event_line_within_retention(line: &str, cutoff: DateTime<Utc>) -> bool {
+    let Ok(event) = serde_json::from_str::<SpoolEvent>(line) else {
+        return false;
+    };
+    parse_timestamp(&event.timestamp).is_some_and(|timestamp| timestamp >= cutoff)
+}
+
+fn append_extension(path: &Path, suffix: &str) -> PathBuf {
+    let mut value: OsString = path.as_os_str().to_owned();
+    value.push(suffix);
+    PathBuf::from(value)
+}
+
+fn lock_exclusive(file: &File) -> io::Result<()> {
+    let result = unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX) };
+    if result == 0 {
+        Ok(())
+    } else {
+        Err(io::Error::last_os_error())
+    }
+}
+
+fn unlock_file(file: &File) -> io::Result<()> {
+    let result = unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_UN) };
+    if result == 0 {
+        Ok(())
+    } else {
+        Err(io::Error::last_os_error())
+    }
+}
+
+#[cfg(test)]
+fn tasks_from_events(events: Vec<SpoolEvent>) -> Vec<AgentTask> {
+    let home = home_dir();
+    tasks_from_events_at(events, home.as_deref(), None)
+}
+
+#[cfg(test)]
 fn tasks_from_events_with_home(events: Vec<SpoolEvent>, home: Option<&Path>) -> Vec<AgentTask> {
+    tasks_from_events_at(events, home, None)
+}
+
+fn tasks_from_events_at(
+    events: Vec<SpoolEvent>,
+    home: Option<&Path>,
+    now: Option<DateTime<Utc>>,
+) -> Vec<AgentTask> {
     let mut grouped: BTreeMap<(AgentSource, String), Vec<SpoolEvent>> = BTreeMap::new();
 
     for event in events
@@ -98,7 +244,7 @@ fn tasks_from_events_with_home(events: Vec<SpoolEvent>, home: Option<&Path>) -> 
         .into_iter()
         .filter_map(|((source, session_key), mut events)| {
             events.sort_by(|a, b| a.timestamp.cmp(&b.timestamp));
-            task_from_events(source, session_key, events, home)
+            task_from_events(source, session_key, events, home, now)
         })
         .collect();
 
@@ -110,6 +256,7 @@ fn task_from_events(
     session_key: String,
     spool_events: Vec<SpoolEvent>,
     home: Option<&Path>,
+    now: Option<DateTime<Utc>>,
 ) -> Option<AgentTask> {
     let first = spool_events.first()?;
     let last = spool_events.last()?;
@@ -129,6 +276,13 @@ fn task_from_events(
     let mut status = status;
     let mut updated_at = last.timestamp.clone();
     let mut last_action = summary_for_event(state_event);
+    if let Some(stale_at) = stale_tool_running_at(state_event, now) {
+        status = TaskStatus::Stale;
+        if parse_timestamp(&updated_at).is_none_or(|updated_at| stale_at > updated_at) {
+            updated_at = stale_at.to_rfc3339_opts(SecondsFormat::Secs, true);
+        }
+        last_action = "工具运行超过 10 分钟未收到完成事件".to_string();
+    }
     if let Some(state) = codex_session_state {
         if state.timestamp.as_str() > state_event.timestamp.as_str() {
             status = state.status;
@@ -289,9 +443,30 @@ fn status_for_event(event: &SpoolEvent) -> Option<TaskStatus> {
         "PostToolUse" => TaskStatus::Thinking,
         "Stop" | "SessionEnd" | "SubagentStop" | "TaskCompleted" => TaskStatus::Completed,
         "PostToolUseFailure" | "StopFailure" => TaskStatus::Failed,
-        _ => TaskStatus::Running,
+        _ => return None,
     }
     .into()
+}
+
+fn stale_tool_running_at(event: &SpoolEvent, now: Option<DateTime<Utc>>) -> Option<DateTime<Utc>> {
+    if status_for_event(event) != Some(TaskStatus::ToolRunning) {
+        return None;
+    }
+
+    let now = now?;
+    let timestamp = parse_timestamp(&event.timestamp)?;
+    let stale_at = timestamp + Duration::minutes(TOOL_RUNNING_STALE_AFTER_MINUTES);
+    if now < stale_at {
+        return None;
+    }
+
+    Some(stale_at)
+}
+
+fn parse_timestamp(timestamp: &str) -> Option<DateTime<Utc>> {
+    DateTime::parse_from_rfc3339(timestamp)
+        .ok()
+        .map(|value| value.with_timezone(&Utc))
 }
 
 fn is_permission_notification(event: &SpoolEvent) -> bool {
@@ -770,6 +945,52 @@ mod tests {
     }
 
     #[test]
+    fn marks_long_running_tool_as_stale() {
+        let tasks = tasks_from_events_at(
+            vec![event("PreToolUse", "2026-05-30T01:00:00Z")],
+            Some(&test_home("tool-stale")),
+            Some(utc("2026-05-30T01:11:00Z")),
+        );
+
+        assert_eq!(tasks.len(), 1);
+        assert_eq!(tasks[0].status, TaskStatus::Stale);
+        assert_eq!(tasks[0].updated_at, "2026-05-30T01:10:00Z");
+        assert_eq!(
+            tasks[0].last_action.as_deref(),
+            Some("工具运行超过 10 分钟未收到完成事件")
+        );
+    }
+
+    #[test]
+    fn keeps_recent_tool_use_running() {
+        let tasks = tasks_from_events_at(
+            vec![event("PreToolUse", "2026-05-30T01:00:00Z")],
+            Some(&test_home("tool-not-stale")),
+            Some(utc("2026-05-30T01:09:59Z")),
+        );
+
+        assert_eq!(tasks.len(), 1);
+        assert_eq!(tasks[0].status, TaskStatus::ToolRunning);
+        assert_eq!(tasks[0].updated_at, "2026-05-30T01:00:00Z");
+    }
+
+    #[test]
+    fn stale_tool_task_keeps_later_neutral_update_timestamp() {
+        let mut cwd_changed = event("CwdChanged", "2026-05-30T01:12:00Z");
+        cwd_changed.tool_name = None;
+
+        let tasks = tasks_from_events_at(
+            vec![event("PreToolUse", "2026-05-30T01:00:00Z"), cwd_changed],
+            Some(&test_home("tool-stale-neutral")),
+            Some(utc("2026-05-30T01:13:00Z")),
+        );
+
+        assert_eq!(tasks.len(), 1);
+        assert_eq!(tasks[0].status, TaskStatus::Stale);
+        assert_eq!(tasks[0].updated_at, "2026-05-30T01:12:00Z");
+    }
+
+    #[test]
     fn maps_claude_completion_events_to_completed_status() {
         for event_name in ["Stop", "SessionEnd", "SubagentStop", "TaskCompleted"] {
             let mut hook_event = event(event_name, "2026-05-30T01:00:00Z");
@@ -798,6 +1019,19 @@ mod tests {
         notification.tool_name = None;
 
         let tasks = tasks_from_events(vec![stopped, notification]);
+
+        assert_eq!(tasks.len(), 1);
+        assert_eq!(tasks[0].status, TaskStatus::Completed);
+        assert_eq!(tasks[0].last_action.as_deref(), Some("会话本轮完成"));
+    }
+
+    #[test]
+    fn keeps_completed_status_after_later_unknown_event() {
+        let stopped = event("Stop", "2026-05-30T01:00:00Z");
+        let mut unknown = event("FutureHookEvent", "2026-05-30T01:01:00Z");
+        unknown.tool_name = None;
+
+        let tasks = tasks_from_events(vec![stopped, unknown]);
 
         assert_eq!(tasks.len(), 1);
         assert_eq!(tasks[0].status, TaskStatus::Completed);
@@ -1019,6 +1253,51 @@ mod tests {
         assert!(tasks.is_empty());
     }
 
+    #[test]
+    fn compacts_event_file_to_recent_parseable_events() {
+        let home = test_home("event-compaction");
+        let path = home.join("events/codex.jsonl");
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(
+            &path,
+            [
+                event_line("SessionStart", "2026-05-25T01:00:00Z"),
+                "not-json".to_string(),
+                event_line("PreToolUse", "2026-05-30T01:00:00Z"),
+            ]
+            .join("\n"),
+        )
+        .unwrap();
+
+        compact_event_file(&path, utc("2026-05-27T01:00:00Z")).unwrap();
+
+        let lines = fs::read_to_string(&path).unwrap();
+        let events = lines
+            .lines()
+            .map(|line| serde_json::from_str::<SpoolEvent>(line).unwrap())
+            .collect::<Vec<_>>();
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].event, "PreToolUse");
+        assert_eq!(events[0].timestamp, "2026-05-30T01:00:00Z");
+    }
+
+    #[test]
+    fn detects_event_spool_size_threshold() {
+        let home = test_home("event-spool-threshold");
+        let events_dir = home.join("events");
+        fs::create_dir_all(&events_dir).unwrap();
+        fs::write(events_dir.join("codex.jsonl"), "12345").unwrap();
+
+        assert!(event_spool_exceeds_compaction_size_threshold_in_dir_at(
+            &events_dir,
+            5
+        ));
+        assert!(!event_spool_exceeds_compaction_size_threshold_in_dir_at(
+            &events_dir,
+            6
+        ));
+    }
+
     fn test_home(name: &str) -> PathBuf {
         let path = std::env::temp_dir().join(format!(
             "agent-island-hook-ingest-{name}-{}",
@@ -1027,5 +1306,26 @@ mod tests {
         let _ = fs::remove_dir_all(&path);
         fs::create_dir_all(&path).unwrap();
         path
+    }
+
+    fn utc(timestamp: &str) -> chrono::DateTime<chrono::Utc> {
+        chrono::DateTime::parse_from_rfc3339(timestamp)
+            .unwrap()
+            .with_timezone(&chrono::Utc)
+    }
+
+    fn event_line(name: &str, timestamp: &str) -> String {
+        serde_json::json!({
+            "source": "codex",
+            "event": name,
+            "sessionId": "session-1",
+            "sessionKey": "abc123",
+            "cwd": "/Users/spf/project/agent-island",
+            "timestamp": timestamp,
+            "toolName": "Bash",
+            "notificationType": null,
+            "actionSummary": null
+        })
+        .to_string()
     }
 }

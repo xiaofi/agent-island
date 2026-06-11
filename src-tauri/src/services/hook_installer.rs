@@ -325,8 +325,11 @@ fn source_arg(source: &AgentSource) -> Result<&'static str, HookInstallError> {
 fn helper_script() -> Result<String, HookInstallError> {
     let app_dir = config_store::app_support_dir()
         .ok_or_else(|| HookInstallError::new("home-missing", "无法定位用户 HOME"))?;
-    let app_dir = shell_single_quote(&app_dir.display().to_string());
+    helper_script_for_app_dir(&app_dir)
+}
 
+fn helper_script_for_app_dir(app_dir: &Path) -> Result<String, HookInstallError> {
+    let app_dir = shell_single_quote(&app_dir.display().to_string());
     Ok(format!(
         r#"#!/bin/sh
 # Agent Island hook helper v2
@@ -337,7 +340,7 @@ if [ -z "$PYTHON_BIN" ]; then
 fi
 
 AGENT_ISLAND_APP_DIR="$APP_DIR" "$PYTHON_BIN" -c '
-import datetime, hashlib, json, os, sys
+import datetime, fcntl, hashlib, json, os, sys
 
 READ_LIMIT = 1048576
 LOG_RETENTION_DAYS = 5
@@ -413,6 +416,18 @@ def write_hook_log(record):
             handle.write(json.dumps(record, ensure_ascii=False, separators=(",", ":")) + "\n")
     except Exception:
         pass
+
+def write_event_record(record):
+    event_line = json.dumps(record, ensure_ascii=False, separators=(",", ":"))
+    lock_path = event_path + ".lock"
+
+    with open(lock_path, "a", encoding="utf-8") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        try:
+            with open(event_path, "a", encoding="utf-8") as handle:
+                handle.write(event_line + "\n")
+        finally:
+            fcntl.flock(lock, fcntl.LOCK_UN)
 
 try:
     raw = sys.stdin.read(READ_LIMIT)
@@ -520,8 +535,7 @@ if event == "HookEvent" and not any([session_id, transcript_path, cwd, tool_name
     sys.exit(0)
 
 try:
-    with open(event_path, "a", encoding="utf-8") as handle:
-        handle.write(json.dumps(record, ensure_ascii=False, separators=(",", ":")) + "\n")
+    write_event_record(record)
     log_record["outcome"] = "written"
 except Exception as error:
     log_record["outcome"] = "event-write-failed"
@@ -738,6 +752,10 @@ impl HookInstallError {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::{
+        io::Write,
+        process::{Command, Stdio},
+    };
 
     #[test]
     fn claude_events_include_task_completion_hooks() {
@@ -750,8 +768,75 @@ mod tests {
         let script = helper_script().unwrap();
 
         assert!(script.contains("LOG_RETENTION_DAYS = 5"));
+        assert!(script.contains("fcntl.flock"));
         assert!(script.contains("hook-receipts-"));
         assert!(script.contains("\"outcome\""));
         assert!(script.contains("\"transcriptPath\": transcript_path"));
+    }
+
+    #[test]
+    fn helper_script_executes_and_appends_event() {
+        let app_dir = test_app_dir("helper-executes");
+        fs::create_dir_all(app_dir.join("events")).unwrap();
+        fs::write(
+            app_dir.join("config.json"),
+            r#"{"hookSource":{"codex":true,"claudeCode":false}}"#,
+        )
+        .unwrap();
+        fs::write(
+            app_dir.join("events/codex.jsonl"),
+            r#"{"source":"codex","event":"SessionStart","sessionKey":"old","timestamp":"2026-05-01T00:00:00Z"}
+"#,
+        )
+        .unwrap();
+
+        let script = helper_script_for_app_dir(&app_dir).unwrap();
+        let script_path = app_dir.join("agent-island-hook");
+        fs::write(&script_path, script).unwrap();
+
+        let mut child = Command::new("/bin/sh")
+            .arg(&script_path)
+            .arg("--source")
+            .arg("codex")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .unwrap();
+        {
+            let mut stdin = child.stdin.take().unwrap();
+            stdin
+                .write_all(
+                    br#"{"hook_event_name":"PreToolUse","session_id":"session-1","cwd":"/tmp/project","tool_name":"Bash"}"#,
+                )
+                .unwrap();
+        }
+        let status = child.wait().unwrap();
+
+        assert!(status.success());
+        let events = fs::read_to_string(app_dir.join("events/codex.jsonl")).unwrap();
+        let lines = events.lines().collect::<Vec<_>>();
+        assert_eq!(lines.len(), 2);
+        assert!(lines[0].contains(r#""sessionKey":"old""#));
+        assert!(lines[1].contains(r#""event":"PreToolUse""#));
+        assert!(lines[1].contains(r#""sessionId":"session-1""#));
+
+        let logs_dir = app_dir.join("logs");
+        assert!(logs_dir.read_dir().unwrap().flatten().any(|entry| {
+            entry
+                .file_name()
+                .to_string_lossy()
+                .starts_with("hook-receipts-")
+        }));
+    }
+
+    fn test_app_dir(name: &str) -> PathBuf {
+        let path = std::env::temp_dir().join(format!(
+            "agent-island-hook-installer-{name}-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&path);
+        fs::create_dir_all(&path).unwrap();
+        path
     }
 }

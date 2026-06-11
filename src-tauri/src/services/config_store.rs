@@ -32,7 +32,7 @@ pub fn app_support_dir() -> Option<PathBuf> {
 
     #[cfg(target_os = "macos")]
     {
-        return Some(home.join("Library/Application Support/Agent Island"));
+        Some(home.join("Library/Application Support/Agent Island"))
     }
 
     #[cfg(not(target_os = "macos"))]

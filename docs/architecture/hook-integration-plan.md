@@ -163,8 +163,19 @@ interface HookOperationError {
 
 - `agent-island-hook` 是一个小型 CLI helper，作为 Tauri sidecar 或安装到 app support 目录。
 - `install-manifest.json` 记录 Agent Island 修改过哪些文件、插入了哪些 command、对应备份路径、版本号和安装时间。
-- `events/*.jsonl` 只保存归一化后的最小字段，不保存完整对话或工具输出。
+- `events/*.jsonl` 只保存归一化后的最小字段，不保存完整对话或工具输出；helper 写入路径保持 append-only，Rust watcher 在启动和满足压缩条件时按事件 `timestamp` 保留最近 3 天的可解析行。压缩和 5 分钟任务快照重建解耦：只有事件文件自上次压缩后发生变化，并且距离上次压缩至少 1 小时，或单个 spool 文件超过 5 MiB，才再次压缩；5 分钟 timeout 只有在已有 `tool-running` 任务可能进入 `stale`，或 spool 实际触发压缩后，才重建任务快照。
 - `dead-letter.jsonl` 保存解析失败的最小错误记录，不保存原始 payload。
+
+Windows 支持 TODO：
+
+- 平台路径：把 `~/Library/Application Support/Agent Island` 示例和测试封装成平台 app data 目录；Windows 侧使用 `%APPDATA%\Agent Island` 下的 `events`、`logs`、`backups` 和 manifest。
+- 文件锁：当前 Rust 压缩路径依赖 Unix `flock`，helper 写入路径依赖 Python `fcntl.flock`；Windows 需要 `cfg` 后端或跨平台锁库，并覆盖 append、读取和 compaction 的并发测试。
+- 原子压缩：验证 Windows 对打开文件的 `rename` / `replace` 限制，必要时改为短锁持有的两阶段压缩或平台专用替换流程，避免 hook 写入超时。
+- helper 形态：不能依赖 `/bin/sh`、POSIX 权限位或 `fcntl`；优先评估 Rust sidecar `.exe`，或者生成 Windows 专用 helper，并保持所有异常 `exit 0`。
+- hook 命令：安装和卸载逻辑需要处理 `.exe` 后缀、带空格安装路径、反斜杠转义、JSON/TOML 中的 Windows command quoting，以及只删除 Agent Island 自己 command 的规则。
+- 来源发现：补齐 Windows 上 Codex / Claude Code 配置路径、会话索引路径和 transcript 路径探测，确保不会扫描无关目录或读取正文内容。
+- 桌面能力：复核 Tauri Windows 的透明、置顶、无边框、拖拽、multi-monitor 坐标和系统通知行为；通知音需要定义平台降级策略。
+- 验证矩阵：至少增加 Windows runner 或手工清单，覆盖 helper 真实执行、spool 追加、3 天保留、receipt log、安装 dry-run/备份/卸载、`cargo test`、`cargo check` 和基本 Tauri smoke test。
 
 ## 5. Hook helper 行为
 
@@ -246,6 +257,7 @@ helper 不向 stdout 输出任何内容，不向 stderr 输出任何内容。所
 
 - `waiting-user` 优先级最高，直到收到新的 `UserPromptSubmit`、`PostToolUse`、`Stop` 或更新事件解除。
 - `Notification` 和 `CwdChanged` 默认不改变状态，避免 `Stop` 后到达的普通通知把 `completed` 覆盖为 `running`。
+- 未识别的未来 hook event 默认不改变状态，只进入事件列表，避免 schema 扩展时把已完成任务误判回运行中。
 - `tool-running` 如果超过 10 分钟没有 `PostToolUse`，降级为 `stale`，但不判定失败。
 - `completed` 进入压缩态完成确认队列，用户确认后从压缩态移除并归档。
 - 只发现进程但没有 hook 事件时，保持 `discovering` 或 `running` 降级任务。

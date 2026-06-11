@@ -106,9 +106,8 @@ export const useTaskStore = defineStore("tasks", () => {
       return;
     }
 
+    // agent-event-created is supplemental; canonical task fields come from agent-task-updated.
     task.events = [event, ...task.events.filter((item) => item.id !== event.id)].slice(0, 10);
-    task.updatedAt = event.timestamp;
-    task.lastAction = event.summary;
   }
 
   function upsertDiagnostic(diagnostic: AdapterDiagnostic) {

@@ -164,3 +164,50 @@ describe("taskStore archived statuses", () => {
     expect(store.displayTasks[0].status).toBe("thinking");
   });
 });
+
+describe("taskStore live events", () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+    setActivePinia(createPinia());
+  });
+
+  it("keeps canonical task fields when a supplemental event arrives", () => {
+    const store = useTaskStore();
+    store.upsertTask({
+      ...task("completed", [completedEvent("complete-1", "2026-05-30T01:00:00.000Z")]),
+      lastAction: "会话本轮完成",
+    });
+
+    store.addEvent(event("notification-1", "heartbeat", "2026-05-30T01:01:00.000Z", "收到通知"));
+
+    expect(store.tasks[0].events[0].id).toBe("notification-1");
+    expect(store.tasks[0].lastAction).toBe("会话本轮完成");
+    expect(store.tasks[0].updatedAt).toBe("2026-05-30T01:00:00.000Z");
+  });
+
+  it("requires a task update to refresh canonical task fields", () => {
+    const store = useTaskStore();
+    const completion = completedEvent("complete-1", "2026-05-30T01:02:00.000Z");
+    store.upsertTask({
+      ...task("tool-running"),
+      lastAction: "正在运行 Bash",
+    });
+
+    store.addEvent(completion);
+
+    expect(store.tasks[0].events[0].id).toBe("complete-1");
+    expect(store.tasks[0].status).toBe("tool-running");
+    expect(store.tasks[0].lastAction).toBe("正在运行 Bash");
+    expect(store.tasks[0].updatedAt).toBe("2026-05-30T01:00:00.000Z");
+
+    store.upsertTask({
+      ...task("completed", [completion]),
+      updatedAt: "2026-05-30T01:02:00.000Z",
+      lastAction: "完成任务",
+    });
+
+    expect(store.tasks[0].status).toBe("completed");
+    expect(store.tasks[0].lastAction).toBe("完成任务");
+    expect(store.tasks[0].updatedAt).toBe("2026-05-30T01:02:00.000Z");
+  });
+});
