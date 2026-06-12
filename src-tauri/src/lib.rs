@@ -33,6 +33,7 @@ pub fn run() {
             commands::discovery::run_discovery,
             commands::settings::get_settings,
             commands::settings::update_settings,
+            commands::settings::send_test_notification,
             commands::hook::set_hook_source_enabled,
             commands::hook::retry_hook_source_operation,
             commands::hook::run_hook_self_test,

@@ -9,6 +9,7 @@ import type {
   AgentTask,
   AppSettings,
   HookOperation,
+  NotificationSound,
 } from "@/domain/taskTypes";
 import { cloneMockDiagnostics, cloneMockSettings, cloneMockTasks } from "@/mock/tasks";
 
@@ -165,6 +166,12 @@ export async function runHookSelfTest(source: Extract<AgentSource, "codex" | "cl
   }
 
   return structuredClone(mockSettings);
+}
+
+export async function sendTestNotificationCommand(sound: NotificationSound): Promise<void> {
+  if (isTauri()) {
+    return invoke("send_test_notification", { sound });
+  }
 }
 
 export async function openTask(taskId: string): Promise<void> {

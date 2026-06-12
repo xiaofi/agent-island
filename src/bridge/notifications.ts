@@ -1,5 +1,5 @@
-import { isPermissionGranted, requestPermission, sendNotification } from "@tauri-apps/plugin-notification";
-import { isRunningInTauri } from "@/bridge/tauriApi";
+import { isPermissionGranted, requestPermission } from "@tauri-apps/plugin-notification";
+import { isRunningInTauri, sendTestNotificationCommand } from "@/bridge/tauriApi";
 import type { NotificationSound } from "@/domain/taskTypes";
 
 export async function ensureNotificationsPermission() {
@@ -32,28 +32,10 @@ export async function sendTestNotification(sound: NotificationSound): Promise<Te
   }
 
   try {
-    const soundName = notificationSoundName(sound);
-    sendNotification({
-      title: "Agent Island 测试通知",
-      body: "如果你看到这条通知，系统通知已生效。",
-      group: "agent-island-tests",
-      ...(soundName ? { sound: soundName } : {}),
-    });
+    await sendTestNotificationCommand(sound);
     return "sent";
   } catch (error) {
     console.warn("[agent-island] failed to send test notification", error);
     return "failed";
   }
-}
-
-function notificationSoundName(sound: NotificationSound): string | undefined {
-  if (sound === "none") {
-    return undefined;
-  }
-
-  if (sound === "default") {
-    return "NSUserNotificationDefaultSoundName";
-  }
-
-  return sound;
 }

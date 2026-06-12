@@ -1,5 +1,12 @@
 use std::collections::{HashMap, HashSet};
 
+#[cfg(target_os = "macos")]
+use std::{
+    path::{Path, PathBuf},
+    process::Command,
+    sync::OnceLock,
+};
+
 use tauri::AppHandle;
 use tauri_plugin_notification::NotificationExt;
 
@@ -17,6 +24,22 @@ struct TaskNotificationPayload {
     key: String,
     title: String,
     body: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum NotificationSoundPreference {
+    Default,
+    System(&'static str),
+}
+
+impl NotificationSoundPreference {
+    #[cfg(not(target_os = "macos"))]
+    fn notification_sound_name(self) -> &'static str {
+        match self {
+            Self::Default => "NSUserNotificationDefaultSoundName",
+            Self::System(name) => name,
+        }
+    }
 }
 
 pub fn notify_task_updates(
@@ -55,18 +78,13 @@ pub fn notify_task_updates(
             continue;
         }
 
-        let mut builder = app_handle
-            .notification()
-            .builder()
-            .title(payload.title)
-            .body(payload.body)
-            .group("agent-island-tasks");
-
-        if let Some(sound) = notification_sound_name(&settings.notifications.sound) {
-            builder = builder.sound(sound);
-        }
-
-        let result = builder.show();
+        let result = show_notification(
+            app_handle,
+            payload.title,
+            payload.body,
+            "agent-island-tasks",
+            &settings.notifications.sound,
+        );
 
         match result {
             Ok(()) => {
@@ -78,6 +96,49 @@ pub fn notify_task_updates(
             }
         }
     }
+}
+
+pub fn send_test_notification(app_handle: &AppHandle, sound: &str) -> Result<(), String> {
+    show_notification(
+        app_handle,
+        "Agent Island 测试通知".to_string(),
+        "如果你看到这条通知，系统通知已生效。".to_string(),
+        "agent-island-tests",
+        sound,
+    )
+}
+
+fn show_notification(
+    app_handle: &AppHandle,
+    title: String,
+    body: String,
+    group: &'static str,
+    sound: &str,
+) -> Result<(), String> {
+    let sound = notification_sound(sound);
+    let builder = app_handle
+        .notification()
+        .builder()
+        .title(title)
+        .body(body)
+        .group(group);
+
+    #[cfg(not(target_os = "macos"))]
+    let builder = if let Some(sound) = sound {
+        builder.sound(sound.notification_sound_name())
+    } else {
+        builder
+    };
+
+    builder
+        .show()
+        .map_err(|error| format!("failed to send notification: {error}"))?;
+
+    if let Err(error) = play_notification_sound(sound) {
+        eprintln!("[task_notifications] failed to play notification sound: {error}");
+    }
+
+    Ok(())
 }
 
 fn notification_payload(
@@ -184,19 +245,84 @@ fn source_label(source: &AgentSource) -> &'static str {
     }
 }
 
-fn notification_sound_name(sound: &str) -> Option<&'static str> {
+fn notification_sound(sound: &str) -> Option<NotificationSoundPreference> {
     match sound.trim() {
         "none" => None,
-        "Basso" => Some("Basso"),
-        "Glass" => Some("Glass"),
-        "Hero" => Some("Hero"),
-        "Ping" => Some("Ping"),
-        "Pop" => Some("Pop"),
-        "Sosumi" => Some("Sosumi"),
-        "Tink" => Some("Tink"),
-        "default" | "" => Some("NSUserNotificationDefaultSoundName"),
-        _ => Some("NSUserNotificationDefaultSoundName"),
+        "Basso" => Some(NotificationSoundPreference::System("Basso")),
+        "Glass" => Some(NotificationSoundPreference::System("Glass")),
+        "Hero" => Some(NotificationSoundPreference::System("Hero")),
+        "Ping" => Some(NotificationSoundPreference::System("Ping")),
+        "Pop" => Some(NotificationSoundPreference::System("Pop")),
+        "Sosumi" => Some(NotificationSoundPreference::System("Sosumi")),
+        "Tink" => Some(NotificationSoundPreference::System("Tink")),
+        "default" | "" => Some(NotificationSoundPreference::Default),
+        _ => Some(NotificationSoundPreference::Default),
     }
+}
+
+#[cfg(target_os = "macos")]
+fn play_notification_sound(sound: Option<NotificationSoundPreference>) -> Result<(), String> {
+    let Some(sound) = sound else {
+        return Ok(());
+    };
+
+    let path = match sound {
+        NotificationSoundPreference::Default => default_macos_alert_sound_path()
+            .unwrap_or_else(|| macos_system_sound_path("Ping")),
+        NotificationSoundPreference::System(name) => macos_system_sound_path(name),
+    };
+
+    spawn_afplay(&path)
+}
+
+#[cfg(not(target_os = "macos"))]
+fn play_notification_sound(_sound: Option<NotificationSoundPreference>) -> Result<(), String> {
+    Ok(())
+}
+
+#[cfg(target_os = "macos")]
+fn default_macos_alert_sound_path() -> Option<PathBuf> {
+    static DEFAULT_ALERT_SOUND_PATH: OnceLock<Option<PathBuf>> = OnceLock::new();
+
+    DEFAULT_ALERT_SOUND_PATH
+        .get_or_init(|| {
+            let output = Command::new("/usr/bin/defaults")
+                .args(["read", "-g", "com.apple.sound.beep.sound"])
+                .output()
+                .ok()?;
+
+            if !output.status.success() {
+                return None;
+            }
+
+            let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            let path = PathBuf::from(path);
+            path.exists().then_some(path)
+        })
+        .clone()
+}
+
+#[cfg(target_os = "macos")]
+fn macos_system_sound_path(name: &str) -> PathBuf {
+    PathBuf::from("/System/Library/Sounds").join(format!("{name}.aiff"))
+}
+
+#[cfg(target_os = "macos")]
+fn spawn_afplay(path: &Path) -> Result<(), String> {
+    if !path.exists() {
+        return Err(format!("sound file does not exist: {}", path.display()));
+    }
+
+    let mut child = Command::new("/usr/bin/afplay")
+        .arg(path)
+        .spawn()
+        .map_err(|error| format!("failed to launch afplay: {error}"))?;
+
+    std::thread::spawn(move || {
+        let _ = child.wait();
+    });
+
+    Ok(())
 }
 
 fn prune_notified_keys(keys: &mut HashSet<String>) {
@@ -283,15 +409,20 @@ mod tests {
 
     #[test]
     fn maps_notification_sound_preferences() {
+        assert_eq!(notification_sound("default"), Some(NotificationSoundPreference::Default));
         assert_eq!(
-            notification_sound_name("default"),
-            Some("NSUserNotificationDefaultSoundName")
+            notification_sound("Ping"),
+            Some(NotificationSoundPreference::System("Ping"))
         );
-        assert_eq!(notification_sound_name("Ping"), Some("Ping"));
-        assert_eq!(notification_sound_name("none"), None);
-        assert_eq!(
-            notification_sound_name("unknown"),
-            Some("NSUserNotificationDefaultSoundName")
-        );
+        assert_eq!(notification_sound("none"), None);
+        assert_eq!(notification_sound("unknown"), Some(NotificationSoundPreference::Default));
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn resolves_macos_system_sound_file() {
+        let path = macos_system_sound_path("Ping");
+
+        assert_eq!(path, PathBuf::from("/System/Library/Sounds/Ping.aiff"));
     }
 }

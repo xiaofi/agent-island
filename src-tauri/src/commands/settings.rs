@@ -1,6 +1,6 @@
 use crate::{
     adapters::types::{AppSettings, AppSettingsPatch},
-    services::config_store,
+    services::{config_store, task_notifications},
 };
 use tauri::{AppHandle, Emitter};
 
@@ -59,4 +59,9 @@ pub async fn update_settings(
     config_store::save_settings(&settings)?;
     let _ = app.emit("settings-updated", settings.clone());
     Ok(settings)
+}
+
+#[tauri::command]
+pub async fn send_test_notification(app: AppHandle, sound: String) -> Result<(), String> {
+    task_notifications::send_test_notification(&app, &sound)
 }
