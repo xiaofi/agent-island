@@ -3,7 +3,7 @@ import { computed, onMounted, ref } from "vue";
 import { storeToRefs } from "pinia";
 import { Bell, RefreshCw } from "@lucide/vue";
 import { sendTestNotification, type TestNotificationResult } from "@/bridge/notifications";
-import { sourceLabel } from "@/domain/privacy";
+import { sourceLabel } from "@/domain/taskPresentation";
 import type { AgentSource, HookOperationError, NotificationSound } from "@/domain/taskTypes";
 import { usePreferencesStore } from "@/stores/preferencesStore";
 import { useTaskStore } from "@/stores/taskStore";
@@ -176,54 +176,6 @@ async function handleSendTestNotification() {
 
 <template>
   <div class="settings-panel">
-    <label class="toggle-row">
-      <span>
-        <strong>隐藏项目路径</strong>
-        <small>只显示项目目录名，避免暴露完整本机路径。</small>
-      </span>
-      <input
-        type="checkbox"
-        :checked="settings.privacy.hideProjectPath"
-        @change="preferencesStore.setPrivacy('hideProjectPath', ($event.target as HTMLInputElement).checked)"
-      />
-    </label>
-
-    <label class="toggle-row">
-      <span>
-        <strong>隐藏任务标题</strong>
-        <small>用来源工具替代任务标题。</small>
-      </span>
-      <input
-        type="checkbox"
-        :checked="settings.privacy.hideTaskTitle"
-        @change="preferencesStore.setPrivacy('hideTaskTitle', ($event.target as HTMLInputElement).checked)"
-      />
-    </label>
-
-    <label class="toggle-row">
-      <span>
-        <strong>压缩态隐私模式</strong>
-        <small>压缩态只保留来源、状态和任务数量；展开列表仍按路径和标题设置展示。</small>
-      </span>
-      <input
-        type="checkbox"
-        :checked="settings.privacy.compactOnly"
-        @change="preferencesStore.setPrivacy('compactOnly', ($event.target as HTMLInputElement).checked)"
-      />
-    </label>
-
-    <label class="toggle-row">
-      <span>
-        <strong>鼠标穿透</strong>
-        <small>开启后悬浮岛不接收鼠标事件，适合只通过快捷方式或菜单控制时使用。</small>
-      </span>
-      <input
-        type="checkbox"
-        :checked="settings.mousePassthrough"
-        @change="preferencesStore.setMousePassthroughPreference(($event.target as HTMLInputElement).checked)"
-      />
-    </label>
-
     <label class="toggle-row">
       <span>
         <strong>显示在 Dock 栏</strong>

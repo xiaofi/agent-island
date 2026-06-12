@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { RefreshCw } from "@lucide/vue";
 import IconButton from "@/components/primitives/IconButton.vue";
-import { sourceLabel } from "@/domain/privacy";
+import { sourceLabel } from "@/domain/taskPresentation";
 import type { AdapterDiagnostic, AgentSource, HookOperationError } from "@/domain/taskTypes";
 import { usePreferencesStore } from "@/stores/preferencesStore";
 import { useTaskStore } from "@/stores/taskStore";

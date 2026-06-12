@@ -3,7 +3,7 @@ import { computed } from "vue";
 import { Check } from "@lucide/vue";
 import StatusDot from "@/components/primitives/StatusDot.vue";
 import { saveIslandWindowPosition, startWindowDrag } from "@/bridge/tauriApi";
-import { statusLabel } from "@/domain/privacy";
+import { statusLabel } from "@/domain/taskPresentation";
 import type { AgentTask } from "@/domain/taskTypes";
 
 const props = withDefaults(defineProps<{

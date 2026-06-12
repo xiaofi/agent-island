@@ -3,7 +3,7 @@ import { Copy, ExternalLink, FolderOpen, Trash2 } from "@lucide/vue";
 import IconButton from "@/components/primitives/IconButton.vue";
 import StatusDot from "@/components/primitives/StatusDot.vue";
 import { copyTaskSummary, openTask, openWorkdir } from "@/bridge/tauriApi";
-import { sourceLabel, statusLabel } from "@/domain/privacy";
+import { sourceLabel, statusLabel } from "@/domain/taskPresentation";
 import type { AgentTask } from "@/domain/taskTypes";
 
 const props = defineProps<{

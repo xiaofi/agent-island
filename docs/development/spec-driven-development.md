@@ -14,7 +14,7 @@ Use this workflow when a change affects any of these surfaces:
 - Privacy rules for titles, paths, prompts, tool data, shell commands, patches,
   transcripts, or local logs.
 - macOS window behavior such as full-screen Spaces, transparency, always-on-top,
-  drag, focus, or mouse passthrough.
+  drag, focus, or Dock visibility.
 - Test strategy, release gates, or any workflow that decides whether a build is
   shippable.
 

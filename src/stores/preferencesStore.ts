@@ -1,5 +1,5 @@
 import { defineStore } from "pinia";
-import { computed, ref } from "vue";
+import { ref } from "vue";
 import type { AgentSource, AppSettings, HookOperation, NotificationSound } from "@/domain/taskTypes";
 import { ensureNotificationsPermission } from "@/bridge/notifications";
 import {
@@ -8,17 +8,11 @@ import {
   runHookSelfTest,
   setDockVisibility,
   setHookSourceEnabled,
-  setMousePassthrough,
   updateSettings,
 } from "@/bridge/tauriApi";
 
 export const usePreferencesStore = defineStore("preferences", () => {
   const settings = ref<AppSettings>({
-    privacy: {
-      hideProjectPath: false,
-      hideTaskTitle: false,
-      compactOnly: false,
-    },
     appearance: {
       islandOpacity: 0.92,
     },
@@ -31,7 +25,6 @@ export const usePreferencesStore = defineStore("preferences", () => {
       delaySeconds: 900,
     },
     quietMode: false,
-    mousePassthrough: false,
     showInDock: false,
     enabledAdapters: ["manual", "codex", "claude-code"],
     hookSource: {
@@ -43,16 +36,9 @@ export const usePreferencesStore = defineStore("preferences", () => {
   });
   const loaded = ref(false);
 
-  const privacy = computed(() => settings.value.privacy);
-
   async function load() {
     settings.value = await getSettings();
     loaded.value = true;
-    try {
-      await setMousePassthrough(settings.value.mousePassthrough);
-    } catch (error) {
-      console.warn("[agent-island] failed to apply mouse passthrough preference", error);
-    }
     try {
       await setDockVisibility(settings.value.showInDock);
     } catch (error) {
@@ -62,20 +48,6 @@ export const usePreferencesStore = defineStore("preferences", () => {
 
   async function patch(patchValue: Partial<AppSettings>) {
     settings.value = await updateSettings(patchValue);
-  }
-
-  async function setPrivacy<K extends keyof AppSettings["privacy"]>(key: K, value: AppSettings["privacy"][K]) {
-    await patch({
-      privacy: {
-        ...settings.value.privacy,
-        [key]: value,
-      },
-    });
-  }
-
-  async function setMousePassthroughPreference(enabled: boolean) {
-    settings.value = await updateSettings({ mousePassthrough: enabled });
-    await setMousePassthrough(enabled);
   }
 
   async function setShowInDockPreference(enabled: boolean) {
@@ -152,18 +124,15 @@ export const usePreferencesStore = defineStore("preferences", () => {
 
   return {
     settings,
-    privacy,
     loaded,
     load,
     patch,
-    setPrivacy,
     setQuietMode,
     setIslandOpacity,
     setNotificationsEnabled,
     setNotificationSound,
     setAutoAcknowledgeEnabled,
     setAutoAcknowledgeDelay,
-    setMousePassthroughPreference,
     setShowInDockPreference,
     setHookSource,
     retryHookSource,

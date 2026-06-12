@@ -1,4 +1,4 @@
-import type { AgentTask, PrivacySettings } from "@/domain/taskTypes";
+import type { AgentTask } from "@/domain/taskTypes";
 
 export function projectNameFromPath(path?: string) {
   if (!path) {
@@ -8,16 +8,6 @@ export function projectNameFromPath(path?: string) {
   const normalized = path.replace(/\/+$/, "");
   const segments = normalized.split("/");
   return segments[segments.length - 1] || normalized;
-}
-
-export function maskTask(task: AgentTask, privacy: PrivacySettings, options: { compact?: boolean } = {}): AgentTask {
-  const compactOnly = privacy.compactOnly && options.compact;
-
-  return {
-    ...task,
-    title: compactOnly ? "" : privacy.hideTaskTitle ? `${sourceLabel(task.source)} task` : task.title,
-    cwd: privacy.hideProjectPath || compactOnly ? projectNameFromPath(task.cwd) : task.cwd,
-  };
 }
 
 export function sourceLabel(source: AgentTask["source"]) {

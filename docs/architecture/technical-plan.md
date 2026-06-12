@@ -24,12 +24,12 @@ MVP 需要证明三件事：
 
 ### 2.1 桌面壳选型调研
 
-结论：MVP 继续推荐 Tauri 2，但需要明确它不是唯一选择。如果后续目标变成 App Store 分发或极致 macOS 原生窗口体验，应重新评估 Swift/AppKit；如果透明置顶、鼠标穿透在 Tauri 上遇到不可接受的问题，再切到 Electron 做兜底验证。
+结论：MVP 继续推荐 Tauri 2，但需要明确它不是唯一选择。如果后续目标变成 App Store 分发或极致 macOS 原生窗口体验，应重新评估 Swift/AppKit；如果透明置顶或空间行为在 Tauri 上遇到不可接受的问题，再切到 Electron 做兜底验证。
 
 | 方案 | 优势 | 风险 / 代价 | 结论 |
 | --- | --- | --- | --- |
 | Tauri 2 | 体积小；Rust 侧适合做进程检测、文件监听、系统集成；支持无边框、置顶、透明、窗口效果等配置；与 Vue/Vite 集成直接。 | macOS 透明窗口需要 `macos-private-api`，不能上 Mac App Store；部分高级窗口行为仍需平台实测。 | 首选。适合本项目本地运行、macOS first、需要 Rust adapter 的定位。 |
-| Electron | 窗口能力成熟；透明、无边框、置顶、鼠标穿透等 API 资料多；生态和调试体验强。 | 体积和内存占用明显更高；对一个小型常驻悬浮岛偏重；主进程安全和打包维护成本更高。 | 备选兜底。若 Tauri 窗口行为卡住，再用 Electron 快速验证。 |
+| Electron | 窗口能力成熟；透明、无边框、置顶等 API 资料多；生态和调试体验强。 | 体积和内存占用明显更高；对一个小型常驻悬浮岛偏重；主进程安全和打包维护成本更高。 | 备选兜底。若 Tauri 窗口行为卡住，再用 Electron 快速验证。 |
 | Wails | WebView + Go 后端；支持 frameless、transparent、AlwaysOnTop 等悬浮窗口模式；整体比 Electron 轻。 | 后端技术栈会从 Rust 切到 Go；本方案已依赖 Rust 生态里的 `notify`、`sysinfo` 和 Tauri command/event 模型。 | 仅当团队更偏 Go 时考虑，不作为当前首选。 |
 | Neutralinojs | 很轻；能用本机 WebView 跑窗口；API 简单。 | 原生系统能力较薄，复杂进程扫描、文件监听、窗口控制通常要额外 native 扩展或 sidecar；长期 adapter 能力不如 Tauri 直接。 | 不推荐作为 MVP 主方案。 |
 | Swift/AppKit | macOS 窗口控制最原生；透明、置顶、空间行为、激活策略可控性最好；运行开销低。 | macOS-only；UI 和状态层需要原生重写；后续跨平台弱；与 Rust/parser 共享代码需要额外桥接。 | 如果产品确认只做 macOS 原生工具，可作为 V2 方向；MVP 不优先。 |
@@ -74,7 +74,6 @@ MVP 需要证明三件事：
 │  - discovery commands                        │
 │  - hook ingest service                        │
 │  - watch service                             │
-│  - privacy filtering                         │
 │  - window commands                           │
 └───────────▲───────────────────────▲─────────┘
             │                       │
@@ -123,7 +122,7 @@ src/
   domain/
     taskTypes.ts
     taskPriority.ts
-    privacy.ts
+    taskPresentation.ts
   bridge/
     tauriApi.ts
     eventBus.ts
@@ -135,7 +134,7 @@ src/
 
 - `taskStore`：Pinia store，维护任务、事件和 adapter 状态。
 - `taskPriority`：实现压缩态排序规则，优先展示 `waiting-user`、`failed`、`tool-running`。
-- `privacy`：根据隐私模式隐藏路径和标题。
+- `taskPresentation`：提供来源、状态和工作目录展示辅助函数。
 - `tauriApi`：封装所有 `invoke` 和 Tauri event 监听，避免组件直接调用系统接口。
 - `IslandCollapsed`：小尺寸常驻视图，只展示主任务状态和任务数量。
 - `IslandExpanded`：悬浮岛下拉列表视图，展示活跃任务和次要任务。
@@ -186,7 +185,7 @@ src-tauri/src/
 - `services/hook_installer.rs`：预览、安装、卸载 Claude Code / Codex hook，保证备份、幂等和只删除自身条目。
 - `services/hook_ingest.rs`：消费 hook helper 写入的本地 JSONL 事件，按来源接入设置过滤后归一化为 `AgentEvent`。
 - `commands/discovery.rs`：暴露 `run_discovery(source?)` 给诊断页。
-- `commands/window.rs`：处理拖拽、置顶、鼠标穿透、Dock 显示、显示隐藏、位置记忆。
+- `commands/window.rs`：处理拖拽、置顶、Dock 显示、显示隐藏、位置记忆。
 
 ## 5. 数据模型
 
@@ -267,7 +266,7 @@ watch 可以先不强制放进 trait。MVP 阶段先用轮询加文件监听组�
 用途：
 
 - UI 开发和截图。
-- 验证排序、详情、隐私模式和错误降级。
+- 验证排序、详情和错误降级。
 - 自动化测试不依赖用户机器上是否安装 Codex 或 Claude Code。
 
 输入文件建议：
@@ -366,7 +365,7 @@ discovering: 1
 {sourceLabel} {statusLabel} · {activeCount} 个任务
 ```
 
-当存在等待用户任务时，右侧显示强调标记；当存在未确认的 `completed` 任务时，压缩态按完成任务逐行追加确认项；隐私模式下只保留来源和状态。
+当存在等待用户任务时，右侧显示强调标记；当存在未确认的 `completed` 任务时，压缩态按完成任务逐行追加确认项。
 
 ## 8. Tauri 窗口行为
 
@@ -386,10 +385,9 @@ discovering: 1
 - 点击压缩态后，主窗口根据当前 monitor 工作区剩余空间向下或向上展开，只展示任务列表和任务详情；靠近屏幕底部时保持底边锚点，让面板向上打开。
 - 设置、诊断等完整功能从悬浮岛按钮打开独立普通桌面窗口。
 - 快捷键切换显示/隐藏。
-- 鼠标穿透默认关闭；开启后仅通过快捷键或 hover 策略临时接收事件。
 - Dock 栏显示默认关闭；用户打开后通过 Tauri `set_dock_visibility` 立即显示 Dock 图标，启动时按持久化配置恢复。
 
-需要重点验证 macOS 下透明窗口、阴影、鼠标穿透、Dock 显示和拖拽之间的兼容性。
+需要重点验证 macOS 下透明窗口、阴影、Dock 显示和拖拽之间的兼容性。
 
 ## 9. UI 方案
 
@@ -405,20 +403,15 @@ discovering: 1
 - 压缩态：状态点、主状态文本、任务数/等待标记；未确认完成任务逐行显示确认项。
 - 悬浮岛展开态：下拉任务卡片列表，最多优先展示 5-7 个活跃任务。
 - 悬浮岛详情态：轻量元信息、最近事件、错误/等待原因、操作按钮。
-- 独立设置窗口：隐私模式、路径隐藏、标题隐藏、快捷键、鼠标穿透、Dock 栏显示。
+- 独立设置窗口：悬浮岛透明度、关键状态通知、自动确认、安静模式、Dock 栏显示和状态采集。
 - 设置窗口还包含悬浮岛透明度、关键状态通知、通知声音和完成任务自动确认；这些属于本地 UI 偏好，不改变 agent 执行流程。
 - 独立诊断窗口：adapter 来源、权限、候选路径、解析状态。
-
-隐私模式：
-
-- `hideProjectPath`: 路径显示为项目名或完全隐藏。
-- `hideTaskTitle`: 标题显示为 `{sourceLabel} task`。
-- `compactOnly`: 只影响压缩态，压缩态只显示来源和状态；展开列表继续按 `hideProjectPath` 和 `hideTaskTitle` 处理。
 
 外观与提醒：
 
 - `appearance.islandOpacity`: 固定应用到压缩态悬浮岛和展开任务面板背景，不使用整体 `opacity`，避免文字和状态点变淡。
 - `notifications.enabled`: 控制 `waiting-user`、`failed`、`completed` 关键状态系统通知。用户开启时请求系统权限，Rust task watcher 统一在任务进入关键状态时发送通知；同一状态停留期间的后续同类事件不重复通知，启动或重新加载已有任务时不回放历史通知。
+- macOS 通知发送依赖 Tauri notification 插件和本地 patched `mac-notification-sys`，delegate 实现 `shouldPresentNotification` 以允许应用前台时仍展示 banner；系统通知样式、专注模式和系统权限仍是最终展示门槛。
 - `notifications.sound`: 控制关键状态通知声音。默认使用系统默认通知音；设置窗口提供 Basso、Ping、Glass、Hero、Pop、Sosumi、Tink 和无声选项；选择无声时仍发送通知但不设置声音。
 - `autoAcknowledge.enabled` / `autoAcknowledge.delaySeconds`: 控制完成任务自动确认。到期后复用完成确认逻辑归档 `completed` 任务，不处理 `paused`、`waiting-user` 或 `failed`。
 - `showInDock`: 控制 macOS Dock 图标是否显示。默认关闭，切换时通过 Rust window command 立即应用，启动时按本地配置恢复。
@@ -434,12 +427,10 @@ discovering: 1
 配置内容：
 
 - 窗口位置。
-- 隐私模式。
 - enabled adapters。
 - mock JSON 路径。
 - discovery 候选路径覆盖。
 - 快捷键。
-- 鼠标穿透选项。
 - Dock 栏显示选项。
 
 首次启用 adapter 时，诊断页需要展示将读取的范围：
@@ -466,7 +457,6 @@ uninstall_hooks(source: AgentSource, scope: "user" | "project"): Promise<HookUni
 open_task(taskId: string): Promise<void>
 open_workdir(path: string): Promise<void>
 copy_task_summary(taskId: string): Promise<void>
-set_mouse_passthrough(enabled: boolean): Promise<void>
 set_dock_visibility(visible: boolean): Promise<void>
 set_window_mode(expanded: boolean): Promise<void>
 open_app_window(kind: "settings" | "diagnostics"): Promise<void>
@@ -496,7 +486,7 @@ hook-install-status-updated
 前端：
 
 - `taskPriority` 单元测试：确保 waiting、failed、tool-running 排序正确。
-- `privacy` 单元测试：确保路径和标题隐藏。
+- `taskPresentation` 单元测试：确保来源、状态和目录展示辅助函数稳定。
 - `TaskCard.vue` 组件测试：不同状态展示正确。
 - mock adapter 集成测试：JSON 变化后 store 更新。
 
@@ -513,7 +503,6 @@ Rust：
 - mock adapter 下至少展示 3 个任务。
 - 修改 mock JSON 后 1 秒内更新 UI。
 - waiting-user 任务提升到压缩态主展示。
-- 开启隐私模式后隐藏完整路径和标题。
 - adapter 失败时 UI 显示降级状态。
 
 ## 13. 里程碑实施计划
@@ -536,7 +525,7 @@ Rust：
 - 实现共享 task/event 类型。
 - 实现 Pinia store。
 - 实现 mock adapter 和 Rust command。
-- 实现任务排序、运行时长、隐私模式。
+- 实现任务排序、运行时长和任务展示辅助函数。
 
 ### M3: Discovery
 
@@ -556,7 +545,6 @@ Rust：
 
 - 增加快捷键。
 - 增加打开应用、打开目录、复制摘要。
-- 增加鼠标穿透选项。
 - 完成 macOS 打包配置。
 - 走一遍 MVP 验收清单。
 
@@ -566,7 +554,7 @@ Rust：
 - Hook 配置影响用户环境：不静默安装，先 dry-run 和备份；安装器只追加自身 command，卸载只删除自身 command。
 - Hook 运行影响 agent：helper 不输出、不阻断、不注入上下文，异常也返回 `exit 0`，Codex trust 流程不绕过。
 - 无法可靠跳回具体终端窗口：MVP 先支持打开工作目录，应用跳转作为增强能力。
-- 透明置顶窗口和鼠标穿透在 macOS 上交互复杂：鼠标穿透默认关闭，并单独做手动验收。
+- 透明置顶窗口、Dock 显示和拖拽在 macOS 上交互复杂，需要单独做手动验收。
 - 隐私边界容易被 adapter 破坏：adapter 只产出摘要字段，完整正文不进入 store。
 - 实时 watch 复杂度过高：MVP 可先用轮询，稳定后再针对确定数据源增加文件监听。
 
@@ -581,4 +569,4 @@ Rust：
 7. 实现 diagnostics 页面骨架。
 8. 实现 Codex / Claude Code discovery 命令。
 9. 根据 discovery 结果选择首个真实 adapter。
-10. 补齐隐私模式、快捷键和 macOS 打包。
+10. 补齐快捷键和 macOS 打包。

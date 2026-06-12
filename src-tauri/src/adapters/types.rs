@@ -115,14 +115,6 @@ pub struct AdapterDiagnostic {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct PrivacySettings {
-    pub hide_project_path: bool,
-    pub hide_task_title: bool,
-    pub compact_only: bool,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct AppearanceSettings {
     pub island_opacity: f64,
 }
@@ -187,7 +179,6 @@ pub struct IslandWindowSettings {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AppSettings {
-    pub privacy: PrivacySettings,
     #[serde(default = "default_appearance_settings")]
     pub appearance: AppearanceSettings,
     #[serde(default = "default_notification_settings")]
@@ -196,7 +187,6 @@ pub struct AppSettings {
     pub auto_acknowledge: AutoAcknowledgeSettings,
     #[serde(default)]
     pub quiet_mode: bool,
-    pub mouse_passthrough: bool,
     #[serde(default)]
     pub show_in_dock: bool,
     pub enabled_adapters: Vec<AgentSource>,
@@ -209,12 +199,10 @@ pub struct AppSettings {
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct AppSettingsPatch {
-    pub privacy: Option<PrivacySettings>,
     pub appearance: Option<AppearanceSettings>,
     pub notifications: Option<NotificationSettings>,
     pub auto_acknowledge: Option<AutoAcknowledgeSettings>,
     pub quiet_mode: Option<bool>,
-    pub mouse_passthrough: Option<bool>,
     pub show_in_dock: Option<bool>,
     pub enabled_adapters: Option<Vec<AgentSource>>,
     pub hook_source: Option<HookSourceSettings>,
@@ -227,16 +215,10 @@ pub fn now_iso() -> String {
 
 pub fn default_settings() -> AppSettings {
     AppSettings {
-        privacy: PrivacySettings {
-            hide_project_path: false,
-            hide_task_title: false,
-            compact_only: false,
-        },
         appearance: default_appearance_settings(),
         notifications: default_notification_settings(),
         auto_acknowledge: default_auto_acknowledge_settings(),
         quiet_mode: false,
-        mouse_passthrough: false,
         show_in_dock: false,
         enabled_adapters: vec![
             AgentSource::Manual,

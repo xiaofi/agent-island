@@ -55,50 +55,13 @@ export async function updateSettings(patch: Partial<AppSettings>): Promise<AppSe
     return invoke<AppSettings>("update_settings", { patch });
   }
 
-  mockSettings = {
-    ...mockSettings,
-    ...patch,
-    privacy: {
-      ...mockSettings.privacy,
-      ...patch.privacy,
-    },
-    appearance: {
-      ...mockSettings.appearance,
-      ...patch.appearance,
-    },
-    notifications: {
-      ...mockSettings.notifications,
-      ...patch.notifications,
-    },
-    autoAcknowledge: {
-      ...mockSettings.autoAcknowledge,
-      ...patch.autoAcknowledge,
-    },
-    hookSource: {
-      ...mockSettings.hookSource,
-      ...patch.hookSource,
-      lastErrors: {
-        ...mockSettings.hookSource.lastErrors,
-        ...patch.hookSource?.lastErrors,
-      },
-    },
-    islandWindow: {
-      ...mockSettings.islandWindow,
-      ...patch.islandWindow,
-    },
-  };
+  mockSettings = mergeSettings({ ...mockSettings, ...patch });
   window.localStorage.setItem("agent-island-settings", JSON.stringify(mockSettings));
   return structuredClone(mockSettings);
 }
 
 function mergeSettings(saved: Partial<AppSettings>): AppSettings {
   return {
-    ...mockSettings,
-    ...saved,
-    privacy: {
-      ...mockSettings.privacy,
-      ...saved.privacy,
-    },
     appearance: {
       ...mockSettings.appearance,
       ...saved.appearance,
@@ -111,6 +74,9 @@ function mergeSettings(saved: Partial<AppSettings>): AppSettings {
       ...mockSettings.autoAcknowledge,
       ...saved.autoAcknowledge,
     },
+    quietMode: saved.quietMode ?? mockSettings.quietMode,
+    showInDock: saved.showInDock ?? mockSettings.showInDock,
+    enabledAdapters: saved.enabledAdapters ?? mockSettings.enabledAdapters,
     hookSource: {
       ...mockSettings.hookSource,
       ...saved.hookSource,
@@ -207,12 +173,6 @@ export async function copyTaskSummary(task: AgentTask): Promise<void> {
   }
 }
 
-export async function setMousePassthrough(enabled: boolean): Promise<void> {
-  if (isTauri()) {
-    return invoke("set_mouse_passthrough", { enabled });
-  }
-}
-
 export async function setDockVisibility(visible: boolean): Promise<void> {
   if (isTauri()) {
     return invoke("set_dock_visibility", { visible });
@@ -267,6 +227,14 @@ export async function openAppWindow(kind: "settings" | "diagnostics"): Promise<v
   }
 
   window.open(`/?window=${kind}`, `agent-island-${kind}`, "width=760,height=620");
+}
+
+export async function quitApp(): Promise<void> {
+  if (isTauri()) {
+    return invoke("quit_app");
+  }
+
+  console.info("[agent-island] quit app");
 }
 
 export async function subscribeAgentEvents(subscriptions: AgentBridgeSubscriptions): Promise<() => void> {

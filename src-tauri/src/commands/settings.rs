@@ -16,10 +16,6 @@ pub async fn update_settings(
 ) -> Result<AppSettings, String> {
     let mut settings = config_store::load_settings();
 
-    if let Some(privacy) = patch.privacy {
-        settings.privacy = privacy;
-    }
-
     if let Some(appearance) = patch.appearance {
         settings.appearance = appearance;
     }
@@ -34,10 +30,6 @@ pub async fn update_settings(
 
     if let Some(quiet_mode) = patch.quiet_mode {
         settings.quiet_mode = quiet_mode;
-    }
-
-    if let Some(mouse_passthrough) = patch.mouse_passthrough {
-        settings.mouse_passthrough = mouse_passthrough;
     }
 
     if let Some(show_in_dock) = patch.show_in_dock {

@@ -45,14 +45,15 @@ Native smoke owns window behavior:
 - full-screen Space behavior
 - drag and persisted position
 - settings and diagnostics windows
-- mouse passthrough
+- Dock visibility
+- native notification delivery
 
 ## Current Project Fit
 
-The current project already has Vitest coverage for priority, privacy, settings,
-task store behavior, and island components. Rust currently uses `cargo check` as
-the baseline, with hook integration tests planned around temporary HOME and app
-support paths.
+The current project already has Vitest coverage for priority, task presentation,
+settings, task store behavior, and island components. Rust currently uses
+`cargo check` as the baseline, with hook integration tests planned around
+temporary HOME and app support paths.
 
 The first useful implementation step is not a broad Appium suite. It is to make
 the acceptance mapping explicit and then add missing Rust integration tests for
@@ -68,6 +69,8 @@ observables:
 - island window exists
 - settings window opens
 - diagnostics window opens
+- Dock visibility can be toggled when that surface changes
+- a test notification can be sent when that surface changes
 
 Do not move task priority, sanitizer, hook config merge, or state-machine
 assertions into native UI tests.

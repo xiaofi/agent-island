@@ -6,17 +6,6 @@ use tauri::{
 use crate::services::island_window;
 
 #[tauri::command]
-pub async fn set_mouse_passthrough(app: AppHandle, enabled: bool) -> Result<(), String> {
-    let window = app
-        .get_webview_window("main")
-        .ok_or_else(|| "main window not found".to_string())?;
-
-    window
-        .set_ignore_cursor_events(enabled)
-        .map_err(|error| error.to_string())
-}
-
-#[tauri::command]
 pub async fn set_dock_visibility(app: AppHandle, visible: bool) -> Result<(), String> {
     #[cfg(target_os = "macos")]
     {
@@ -168,6 +157,12 @@ pub async fn open_app_window(app: AppHandle, kind: String) -> Result<(), String>
     .build()
     .map_err(|error| error.to_string())?;
 
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn quit_app(app: AppHandle) -> Result<(), String> {
+    app.exit(0);
     Ok(())
 }
 

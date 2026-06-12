@@ -3,7 +3,7 @@ import { computed } from "vue";
 import { Check } from "@lucide/vue";
 import DurationText from "@/components/primitives/DurationText.vue";
 import StatusDot from "@/components/primitives/StatusDot.vue";
-import { projectNameFromPath, sourceLabel, statusLabel } from "@/domain/privacy";
+import { projectNameFromPath, sourceLabel, statusLabel } from "@/domain/taskPresentation";
 import type { AgentTask } from "@/domain/taskTypes";
 import { useTaskStore } from "@/stores/taskStore";
 

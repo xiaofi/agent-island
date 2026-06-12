@@ -80,12 +80,6 @@ export interface AdapterDiagnostic {
   updatedAt: string;
 }
 
-export interface PrivacySettings {
-  hideProjectPath: boolean;
-  hideTaskTitle: boolean;
-  compactOnly: boolean;
-}
-
 export interface AppearanceSettings {
   islandOpacity: number;
 }
@@ -129,12 +123,10 @@ export interface IslandWindowSettings {
 }
 
 export interface AppSettings {
-  privacy: PrivacySettings;
   appearance: AppearanceSettings;
   notifications: NotificationSettings;
   autoAcknowledge: AutoAcknowledgeSettings;
   quietMode: boolean;
-  mousePassthrough: boolean;
   showInDock: boolean;
   enabledAdapters: AgentSource[];
   hookSource: HookSourceSettings;

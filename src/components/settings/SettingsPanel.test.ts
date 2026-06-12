@@ -11,11 +11,6 @@ import { usePreferencesStore } from "@/stores/preferencesStore";
 import { useTaskStore } from "@/stores/taskStore";
 
 const baseSettings: AppSettings = {
-  privacy: {
-    hideProjectPath: false,
-    hideTaskTitle: false,
-    compactOnly: false,
-  },
   appearance: {
     islandOpacity: 0.92,
   },
@@ -28,7 +23,6 @@ const baseSettings: AppSettings = {
     delaySeconds: 900,
   },
   quietMode: false,
-  mousePassthrough: false,
   showInDock: false,
   enabledAdapters: ["manual", "codex", "claude-code"],
   hookSource: {
@@ -123,6 +117,10 @@ describe("SettingsPanel hook source controls", () => {
 
     expect(wrapper.text()).toContain("安静模式");
     expect(wrapper.text()).toContain("显示在 Dock 栏");
+    expect(wrapper.text()).not.toContain("隐藏项目路径");
+    expect(wrapper.text()).not.toContain("隐藏任务标题");
+    expect(wrapper.text()).not.toContain("压缩态隐私模式");
+    expect(wrapper.text()).not.toContain("鼠标穿透");
     expect(wrapper.findAll("input[type='checkbox']").some((input) => (input.element as HTMLInputElement).checked)).toBe(true);
   });
 

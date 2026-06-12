@@ -228,7 +228,7 @@ helper 不向 stdout 输出任何内容，不向 stderr 输出任何内容。所
 
 可选增强：
 
-- `cwd` 可以采集完整路径，但 UI 根据隐私设置隐藏；后续可增加“只保存项目名”模式。
+- `cwd` 可以采集完整路径；任务卡片默认只展示项目目录名，详情态可展示完整工作目录。
 - shell command 只做分类，例如 `npm test` 归为 `Bash:npm`，不保存参数。
 - 文件路径只保存 basename 或 repo-relative path，默认不保存绝对文件路径。
 
@@ -624,7 +624,6 @@ Tauri runtime 或 agent hook 送达的证明。
 - 只打开 Codex 接入时，悬浮岛只展示 Codex hook 任务，不展示 Claude Code hook 任务。
 - 关闭某来源开关后，对应 agent 的后续任务中不再触发 Agent Island helper。
 - helper 删除或不可执行时，Claude Code / Codex 不被阻断。
-- 隐私模式开启后，UI 不显示完整 cwd / title。
 
 ## 12. 实施里程碑
 
@@ -661,7 +660,7 @@ Tauri runtime 或 agent hook 送达的证明。
 ### H5: 打磨
 
 - 增加事件文件轮转和大小上限。
-- 增加 “只保存项目名” 隐私模式。
+- 评估是否增加“只保存项目名”的采集模式。
 - 增加诊断导出，但默认不包含敏感字段。
 
 ## 13. 风险与应对

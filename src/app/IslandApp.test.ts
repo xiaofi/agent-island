@@ -4,18 +4,13 @@ import { flushPromises, mount } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import IslandApp from "@/app/IslandApp.vue";
-import { setWindowMode, subscribeWindowFocusChanged } from "@/bridge/tauriApi";
+import { quitApp, setWindowMode, subscribeWindowFocusChanged } from "@/bridge/tauriApi";
 import type { AgentTask } from "@/domain/taskTypes";
 import { usePreferencesStore } from "@/stores/preferencesStore";
 import { useTaskStore } from "@/stores/taskStore";
 
 vi.mock("@/bridge/tauriApi", () => ({
   getSettings: vi.fn(async () => ({
-    privacy: {
-      hideProjectPath: false,
-      hideTaskTitle: false,
-      compactOnly: false,
-    },
     appearance: {
       islandOpacity: 0.92,
     },
@@ -28,7 +23,6 @@ vi.mock("@/bridge/tauriApi", () => ({
       delaySeconds: 900,
     },
     quietMode: false,
-    mousePassthrough: false,
     showInDock: false,
     enabledAdapters: ["manual", "codex", "claude-code"],
     hookSource: {
@@ -41,6 +35,7 @@ vi.mock("@/bridge/tauriApi", () => ({
   getTasks: vi.fn(async () => []),
   isRunningInTauri: vi.fn(() => false),
   openAppWindow: vi.fn(),
+  quitApp: vi.fn(),
   runDiscovery: vi.fn(async () => []),
   saveIslandWindowPosition: vi.fn(),
   setDockVisibility: vi.fn(),
@@ -85,7 +80,9 @@ function pausedTask(id: string, title: string): AgentTask {
 
 describe("IslandApp", () => {
   beforeEach(() => {
+    vi.clearAllMocks();
     setActivePinia(createPinia());
+    vi.mocked(quitApp).mockResolvedValue(undefined);
     vi.mocked(setWindowMode).mockResolvedValue("down");
     vi.mocked(subscribeWindowFocusChanged).mockResolvedValue(() => undefined);
   });
@@ -177,10 +174,9 @@ describe("IslandApp", () => {
     expect(wrapper.find(".island-trigger").classes()).not.toContain("island-trigger--stacked");
   });
 
-  it("applies the configured island opacity and compact privacy text", async () => {
+  it("applies the configured island opacity and keeps task titles visible", async () => {
     const preferencesStore = usePreferencesStore();
     preferencesStore.settings.appearance.islandOpacity = 0.7;
-    preferencesStore.settings.privacy.compactOnly = true;
 
     const taskStore = useTaskStore();
     taskStore.tasks = [completedTask("task-a", "Sensitive title")];
@@ -189,8 +185,7 @@ describe("IslandApp", () => {
     await flushPromises();
 
     expect(wrapper.find(".island-window").attributes("style")).toContain("--island-opacity: 0.7");
-    expect(wrapper.text()).toContain("codex · 已完成");
-    expect(wrapper.text()).not.toContain("Sensitive title");
+    expect(wrapper.text()).toContain("Sensitive title");
   });
 
   it("clears a task from the detail view with the manual delete action", async () => {
@@ -218,6 +213,36 @@ describe("IslandApp", () => {
 
       expect(taskStore.tasks).toHaveLength(0);
       expect(wrapper.text()).toContain("没有发现活跃 agent 会话");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("places a quit button after settings in the expanded panel", async () => {
+    vi.useFakeTimers();
+
+    try {
+      const taskStore = useTaskStore();
+      taskStore.tasks = [runningTask("task-a", "A")];
+
+      const wrapper = mount(IslandApp);
+      await flushPromises();
+
+      await wrapper.find("button.collapsed-island__meta").trigger("click");
+      await flushPromises();
+      await vi.advanceTimersByTimeAsync(260);
+      await flushPromises();
+
+      const actionButtons = wrapper.findAll(".panel__actions button");
+      expect(actionButtons.map((button) => button.attributes("title"))).toEqual([
+        "打开诊断窗口",
+        "打开设置窗口",
+        "退出 Agent Island",
+      ]);
+
+      await actionButtons[2].trigger("click");
+
+      expect(quitApp).toHaveBeenCalledTimes(1);
     } finally {
       vi.useRealTimers();
     }

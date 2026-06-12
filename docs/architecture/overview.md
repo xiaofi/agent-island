@@ -29,7 +29,7 @@ Local Sources
 - `src/app/`：窗口入口。`IslandApp.vue` 是悬浮岛，`FullWindowApp.vue` 是设置和诊断窗口。
 - `src/components/island/`：压缩态、展开态、任务卡片、详情。
 - `src/components/settings/`：设置和诊断面板。
-- `src/domain/`：任务类型、排序、隐私处理等纯领域逻辑。
+- `src/domain/`：任务类型、排序、展示标签等纯领域逻辑。
 - `src/stores/`：Pinia store。
 - `src/bridge/`：所有 Tauri invoke 和 event 订阅封装。
 

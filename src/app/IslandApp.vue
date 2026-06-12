@@ -1,19 +1,19 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch, type CSSProperties } from "vue";
-import { Bug, ChevronLeft, Settings } from "@lucide/vue";
+import { Bug, ChevronLeft, Power, Settings } from "@lucide/vue";
 import IslandCollapsed from "@/components/island/IslandCollapsed.vue";
 import IslandExpanded from "@/components/island/IslandExpanded.vue";
 import TaskDetail from "@/components/island/TaskDetail.vue";
 import IconButton from "@/components/primitives/IconButton.vue";
 import {
   openAppWindow,
+  quitApp,
   saveIslandWindowPosition,
   setWindowMode,
   startWindowDrag,
   subscribeWindowFocusChanged,
   type IslandPanelDirection,
 } from "@/bridge/tauriApi";
-import { maskTask } from "@/domain/privacy";
 import { needsAttention } from "@/domain/taskPriority";
 import type { AgentTask } from "@/domain/taskTypes";
 import { usePreferencesStore } from "@/stores/preferencesStore";
@@ -41,13 +41,8 @@ let unsubscribeWindowFocusChanged: (() => void) | undefined;
 let isUnmounted = false;
 
 const selectedRawTask = computed(() => taskStore.tasks.find((task) => task.id === selectedTaskId.value));
-const selectedVisibleTask = computed(() => {
-  const task = selectedRawTask.value;
-  return task ? maskTask(task, preferencesStore.privacy) : undefined;
-});
-const collapsedAlertTasks = computed(() =>
-  taskStore.displayTasks.filter(needsAttention).map((task) => maskTask(task, preferencesStore.privacy, { compact: true })),
-);
+const selectedVisibleTask = computed(() => selectedRawTask.value);
+const collapsedAlertTasks = computed(() => taskStore.displayTasks.filter(needsAttention));
 const islandStyle = computed<CSSProperties>(() => ({
   "--collapsed-height": `${collapsedHeight.value}px`,
   "--island-opacity": String(preferencesStore.settings.appearance.islandOpacity),
@@ -287,6 +282,14 @@ async function handleWindowDrag() {
   }
 }
 
+async function handleQuitApp() {
+  try {
+    await quitApp();
+  } catch (error) {
+    console.warn("[agent-island] failed to quit app", error);
+  }
+}
+
 onMounted(() => {
   isUnmounted = false;
 
@@ -357,6 +360,9 @@ onBeforeUnmount(() => {
               </IconButton>
               <IconButton label="打开设置窗口" @click="openAppWindow('settings')">
                 <Settings :size="16" />
+              </IconButton>
+              <IconButton label="退出 Agent Island" @click="handleQuitApp">
+                <Power :size="16" />
               </IconButton>
             </div>
           </header>

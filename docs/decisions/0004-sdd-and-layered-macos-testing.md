@@ -10,7 +10,8 @@ Agent Island combines a Vue UI, Tauri commands/events, Rust services, local
 hook files, and macOS-specific floating window behavior. The product also has
 strict privacy and user-config safety constraints. A change can look correct in
 browser preview while still failing in the native Tauri runtime, especially for
-transparent windows, full-screen Spaces, drag, focus, and mouse passthrough.
+transparent windows, full-screen Spaces, drag, focus, Dock visibility, and
+native notifications.
 
 The project already has long product and architecture specs, but feature work
 needs a smaller mechanism that maps requirements to implementation tasks and

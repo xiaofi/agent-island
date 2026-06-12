@@ -69,8 +69,7 @@ pub fn notify_task_updates(
     }
 
     for task in tasks {
-        let Some(payload) = notification_payload(task, previous_tasks.get(&task.id), settings)
-        else {
+        let Some(payload) = notification_payload(task, previous_tasks.get(&task.id)) else {
             continue;
         };
 
@@ -144,7 +143,6 @@ fn show_notification(
 fn notification_payload(
     task: &AgentTask,
     previous: Option<&AgentTask>,
-    settings: &AppSettings,
 ) -> Option<TaskNotificationPayload> {
     let status = notification_status_label(&task.status)?;
 
@@ -154,7 +152,7 @@ fn notification_payload(
 
     let key = notification_key(task)?;
     let source = source_label(&task.source);
-    let body = if settings.privacy.hide_task_title || task.title.trim().is_empty() {
+    let body = if task.title.trim().is_empty() {
         format!("{source} task")
     } else {
         task.title.clone()
@@ -267,8 +265,9 @@ fn play_notification_sound(sound: Option<NotificationSoundPreference>) -> Result
     };
 
     let path = match sound {
-        NotificationSoundPreference::Default => default_macos_alert_sound_path()
-            .unwrap_or_else(|| macos_system_sound_path("Ping")),
+        NotificationSoundPreference::Default => {
+            default_macos_alert_sound_path().unwrap_or_else(|| macos_system_sound_path("Ping"))
+        }
         NotificationSoundPreference::System(name) => macos_system_sound_path(name),
     };
 
@@ -337,9 +336,7 @@ fn prune_notified_keys(keys: &mut HashSet<String>) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::adapters::types::{
-        default_settings, AgentEvent, AgentEventType, AgentSource, AgentTask, TaskStatus,
-    };
+    use crate::adapters::types::{AgentEvent, AgentEventType, AgentSource, AgentTask, TaskStatus};
 
     fn event(id: &str, event_type: AgentEventType, timestamp: &str) -> AgentEvent {
         AgentEvent {
@@ -376,46 +373,49 @@ mod tests {
 
     #[test]
     fn does_not_notify_when_task_stays_completed() {
-        let settings = default_settings();
         let previous = task(TaskStatus::Completed, "2026-06-11T01:00:00Z");
         let next = task(TaskStatus::Completed, "2026-06-11T01:00:02Z");
 
-        assert!(notification_payload(&next, Some(&previous), &settings).is_none());
+        assert!(notification_payload(&next, Some(&previous)).is_none());
     }
 
     #[test]
     fn notifies_when_task_enters_completed() {
-        let settings = default_settings();
         let previous = task(TaskStatus::Thinking, "2026-06-11T01:00:00Z");
         let next = task(TaskStatus::Completed, "2026-06-11T01:00:02Z");
 
-        let payload = notification_payload(&next, Some(&previous), &settings).unwrap();
+        let payload = notification_payload(&next, Some(&previous)).unwrap();
 
         assert_eq!(payload.title, "Codex 任务已完成");
         assert_eq!(payload.body, "agent-island");
     }
 
     #[test]
-    fn masks_title_when_privacy_requires_it() {
-        let mut settings = default_settings();
-        settings.privacy.hide_task_title = true;
+    fn uses_source_fallback_when_task_title_is_empty() {
         let previous = task(TaskStatus::Thinking, "2026-06-11T01:00:00Z");
-        let next = task(TaskStatus::Completed, "2026-06-11T01:00:02Z");
+        let mut next = task(TaskStatus::Completed, "2026-06-11T01:00:02Z");
+        next.title = "".to_string();
 
-        let payload = notification_payload(&next, Some(&previous), &settings).unwrap();
+        let payload = notification_payload(&next, Some(&previous)).unwrap();
 
         assert_eq!(payload.body, "Codex task");
     }
 
     #[test]
     fn maps_notification_sound_preferences() {
-        assert_eq!(notification_sound("default"), Some(NotificationSoundPreference::Default));
+        assert_eq!(
+            notification_sound("default"),
+            Some(NotificationSoundPreference::Default)
+        );
         assert_eq!(
             notification_sound("Ping"),
             Some(NotificationSoundPreference::System("Ping"))
         );
         assert_eq!(notification_sound("none"), None);
-        assert_eq!(notification_sound("unknown"), Some(NotificationSoundPreference::Default));
+        assert_eq!(
+            notification_sound("unknown"),
+            Some(NotificationSoundPreference::Default)
+        );
     }
 
     #[cfg(target_os = "macos")]

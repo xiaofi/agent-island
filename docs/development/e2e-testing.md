@@ -19,10 +19,10 @@ window behavior.
 
 | Layer | Tooling | Covers | Default gate |
 | --- | --- | --- | --- |
-| TypeScript unit/component | Vitest, Vue Test Utils, happy-dom | task priority, privacy, stores, compact/expanded UI, settings interactions | yes |
+| TypeScript unit/component | Vitest, Vue Test Utils, happy-dom | task priority, task presentation, stores, compact/expanded UI, settings interactions | yes |
 | Rust unit/integration | `cargo check`, later `cargo test` | adapters, config store, hook installer, hook ingest, sanitizer, aggregator | yes |
 | Browser preview | Vite preview, optional Playwright | layout, full settings/diagnostics windows, screenshot evidence using mock data | optional |
-| Native macOS smoke | manual checklist, later XCTest or Appium Mac2 | app launch, real windows, full-screen Space behavior, transparency, drag, mouse passthrough | release gate |
+| Native macOS smoke | manual checklist, later XCTest or Appium Mac2 | app launch, real windows, full-screen Space behavior, transparency, drag, Dock visibility, native notifications | release gate |
 | Real agent scenario | Claude Code/Codex sample hooks and local spool fixtures | source-gated runtime status behavior without storing sensitive content | release gate for hook work |
 
 ## Current Commands
@@ -50,8 +50,8 @@ http://127.0.0.1:5173/?window=diagnostics
 ```
 
 Use browser-preview screenshots only as UI/layout evidence. Do not use them as
-proof that Tauri window APIs, native focus, full-screen Space behavior, or mouse
-passthrough work.
+proof that Tauri window APIs, native focus, full-screen Space behavior, Dock
+visibility, or native notifications work.
 
 ## Hook Test Rules
 
@@ -77,7 +77,7 @@ Required integration scenarios for hook work:
 
 ## Native macOS Smoke Checklist
 
-Run this before a release and after changes to window services:
+Run this before a release and after changes to window or notification services:
 
 - Launch `npm run tauri -- dev` or a built `.app`.
 - Confirm the island window appears and is not blank.
@@ -86,7 +86,10 @@ Run this before a release and after changes to window services:
   [ADR 0003](../decisions/0003-macos-fullscreen-overlay.md).
 - Drag the island and confirm position persistence after restart.
 - Open settings and diagnostics windows from the island.
-- Toggle mouse passthrough if the touched code affects it.
+- Toggle Dock visibility if the touched code affects app activation or window
+  services.
+- Send a test notification if the touched code affects notifications, and note
+  whether it appears as a banner or only in Notification Center.
 - Capture a screenshot or short note with app version, date, and command used.
 
 ## Automation Boundary

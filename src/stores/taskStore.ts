@@ -1,7 +1,6 @@
 import { defineStore } from "pinia";
 import { computed, ref, watch } from "vue";
 import { getTasks, runDiscovery } from "@/bridge/tauriApi";
-import { maskTask } from "@/domain/privacy";
 import { isActiveTask, needsAttention, pickPrimaryTask, sortTasksByPriority } from "@/domain/taskPriority";
 import type { AdapterDiagnostic, AgentEvent, AgentEventType, AgentSource, AgentTask } from "@/domain/taskTypes";
 import { usePreferencesStore } from "@/stores/preferencesStore";
@@ -42,10 +41,10 @@ export const useTaskStore = defineStore("tasks", () => {
   });
   const waitingCount = computed(() => tasks.value.filter((task) => task.status === "waiting-user").length);
 
-  const visibleTasks = computed(() => displayTasks.value.map((task) => maskTask(task, preferences.privacy)));
+  const visibleTasks = computed(() => displayTasks.value);
   const visiblePrimaryTask = computed(() => {
     const task = primaryTask.value;
-    return task ? maskTask(task, preferences.privacy) : undefined;
+    return task;
   });
 
   watch(

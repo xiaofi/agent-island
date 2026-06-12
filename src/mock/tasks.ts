@@ -90,11 +90,6 @@ export const mockTasks: AgentTask[] = [
 ];
 
 export const mockSettings: AppSettings = {
-  privacy: {
-    hideProjectPath: false,
-    hideTaskTitle: false,
-    compactOnly: false,
-  },
   appearance: {
     islandOpacity: 0.92,
   },
@@ -107,7 +102,6 @@ export const mockSettings: AppSettings = {
     delaySeconds: 900,
   },
   quietMode: false,
-  mousePassthrough: false,
   showInDock: false,
   enabledAdapters: ["manual", "codex", "claude-code"],
   hookSource: {
