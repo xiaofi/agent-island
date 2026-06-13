@@ -3,7 +3,7 @@ use tauri::{
     WebviewWindowBuilder, Window,
 };
 
-use crate::services::island_window;
+use crate::services::{app_open, island_window};
 
 #[tauri::command]
 pub async fn set_dock_visibility(app: AppHandle, visible: bool) -> Result<(), String> {
@@ -158,6 +158,11 @@ pub async fn open_app_window(app: AppHandle, kind: String) -> Result<(), String>
     .map_err(|error| error.to_string())?;
 
     Ok(())
+}
+
+#[tauri::command]
+pub async fn open_external_url(url: String) -> Result<(), String> {
+    app_open::open_url(&url)
 }
 
 #[tauri::command]

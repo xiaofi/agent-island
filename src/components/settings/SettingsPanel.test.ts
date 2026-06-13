@@ -124,6 +124,25 @@ describe("SettingsPanel hook source controls", () => {
     expect(wrapper.findAll("input[type='checkbox']").some((input) => (input.element as HTMLInputElement).checked)).toBe(true);
   });
 
+  it("shows current app version information", () => {
+    const wrapper = mountPanel(structuredClone(baseSettings), [
+      diagnostic("codex", "unavailable"),
+      diagnostic("claude-code", "unavailable"),
+    ]);
+
+    expect(wrapper.text()).toContain("版本信息");
+    expect(wrapper.text()).toContain(`v${__APP_VERSION__}`);
+    expect(wrapper.text()).toContain("GitHub 地址");
+    expect(wrapper.text()).toContain("https://github.com/xiaofi/agent-island");
+    expect(wrapper.text()).toContain("本次更新");
+    expect(wrapper.text()).toContain("更多版本信息");
+    expect(wrapper.text()).not.toContain("运行环境");
+    expect(wrapper.text()).not.toContain("浏览器预览");
+
+    expect(wrapper.find('a[href="https://github.com/xiaofi/agent-island"]').exists()).toBe(true);
+    expect(wrapper.find('a[href="https://github.com/xiaofi/agent-island/releases"]').exists()).toBe(true);
+  });
+
   it("shows appearance, notification, and auto acknowledgement settings", async () => {
     const settings = structuredClone(baseSettings);
     settings.appearance.islandOpacity = 0.7;

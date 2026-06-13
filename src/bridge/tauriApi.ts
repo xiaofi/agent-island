@@ -1,3 +1,4 @@
+import { getName, getVersion } from "@tauri-apps/api/app";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
@@ -17,9 +18,55 @@ const isTauri = () => Boolean(window.__TAURI_INTERNALS__);
 
 export const isRunningInTauri = isTauri;
 
+export interface AppVersionInfo {
+  productName: string;
+  version: string;
+  runtime: "desktop" | "browser-preview";
+}
+
+export const githubRepositoryUrl = "https://github.com/xiaofi/agent-island";
+export const githubReleasesUrl = `${githubRepositoryUrl}/releases`;
+export const currentUpdateSummary = "设置面板现在只保留当前版本、GitHub 地址和 Release 入口，方便核对本机安装构建。";
+
 let mockTasks = cloneMockTasks();
 let mockSettings = cloneMockSettings();
 let sequence = 0;
+
+export function getFallbackAppVersionInfo(): AppVersionInfo {
+  return {
+    productName: "Agent Island",
+    version: __APP_VERSION__,
+    runtime: "browser-preview",
+  };
+}
+
+export async function getAppVersionInfo(): Promise<AppVersionInfo> {
+  if (isTauri()) {
+    try {
+      const [productName, version] = await Promise.all([getName(), getVersion()]);
+      return {
+        productName,
+        version,
+        runtime: "desktop",
+      };
+    } catch {
+      return {
+        ...getFallbackAppVersionInfo(),
+        runtime: "desktop",
+      };
+    }
+  }
+
+  return getFallbackAppVersionInfo();
+}
+
+export async function openExternalUrl(url: string): Promise<void> {
+  if (isTauri()) {
+    return invoke("open_external_url", { url });
+  }
+
+  window.open(url, "_blank", "noopener,noreferrer");
+}
 
 export async function getTasks(): Promise<AgentTask[]> {
   if (isTauri()) {

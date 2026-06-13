@@ -3,6 +3,14 @@ import { computed, onMounted, ref } from "vue";
 import { storeToRefs } from "pinia";
 import { Bell, RefreshCw } from "@lucide/vue";
 import { sendTestNotification, type TestNotificationResult } from "@/bridge/notifications";
+import {
+  currentUpdateSummary,
+  getAppVersionInfo,
+  getFallbackAppVersionInfo,
+  githubReleasesUrl,
+  githubRepositoryUrl,
+  openExternalUrl,
+} from "@/bridge/tauriApi";
 import { sourceLabel } from "@/domain/taskPresentation";
 import type { AgentSource, HookOperationError, NotificationSound } from "@/domain/taskTypes";
 import { usePreferencesStore } from "@/stores/preferencesStore";
@@ -36,6 +44,7 @@ const notificationSoundOptions: { label: string; value: NotificationSound }[] = 
 const busySource = ref<HookUiSource>();
 const pendingSource = ref<HookUiSource>();
 const notificationTestStatus = ref<TestNotificationResult | "idle" | "sending">("idle");
+const appVersionInfo = ref(getFallbackAppVersionInfo());
 
 const diagnosticsBySource = computed(() => {
   return Object.fromEntries(taskStore.diagnostics.map((diagnostic) => [diagnostic.source, diagnostic]));
@@ -57,6 +66,10 @@ const notificationTestMessage = computed(() => {
 });
 
 onMounted(() => {
+  void getAppVersionInfo().then((versionInfo) => {
+    appVersionInfo.value = versionInfo;
+  });
+
   if (!taskStore.diagnostics.length) {
     void taskStore.refreshDiagnostics();
   }
@@ -171,6 +184,11 @@ function handleNotificationSoundChange(event: Event) {
 async function handleSendTestNotification() {
   notificationTestStatus.value = "sending";
   notificationTestStatus.value = await sendTestNotification(settings.value.notifications.sound);
+}
+
+async function handleExternalLink(event: MouseEvent, url: string) {
+  event.preventDefault();
+  await openExternalUrl(url);
 }
 </script>
 
@@ -412,6 +430,44 @@ async function handleSendTestNotification() {
           </div>
         </template>
       </article>
+    </section>
+
+    <section class="settings-section version-info-section" aria-labelledby="settings-version-info-title">
+      <header class="settings-section__header">
+        <div>
+          <strong id="settings-version-info-title">版本信息</strong>
+          <small>当前版本 v{{ appVersionInfo.version }}</small>
+        </div>
+      </header>
+
+      <div class="version-info-card">
+        <div class="version-info-card__current">
+          <span>当前版本</span>
+          <strong>v{{ appVersionInfo.version }}</strong>
+        </div>
+
+        <div class="version-info-card__row">
+          <span>GitHub 地址</span>
+          <a :href="githubRepositoryUrl" target="_blank" rel="noreferrer" @click="handleExternalLink($event, githubRepositoryUrl)">
+            {{ githubRepositoryUrl }}
+          </a>
+        </div>
+
+        <div class="version-info-card__row">
+          <span>本次更新</span>
+          <p>{{ currentUpdateSummary }}</p>
+        </div>
+
+        <a
+          class="version-info-card__release-link"
+          :href="githubReleasesUrl"
+          target="_blank"
+          rel="noreferrer"
+          @click="handleExternalLink($event, githubReleasesUrl)"
+        >
+          更多版本信息
+        </a>
+      </div>
     </section>
   </div>
 </template>

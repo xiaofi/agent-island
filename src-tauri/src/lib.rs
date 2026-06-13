@@ -44,6 +44,7 @@ pub fn run() {
             commands::window::save_island_window_position,
             commands::window::set_window_mode,
             commands::window::open_app_window,
+            commands::window::open_external_url,
             commands::window::quit_app,
             commands::window::toggle_window_visibility,
         ])
